@@ -1,0 +1,88 @@
+<!-- public/room.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini Zoom - Meeting</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="room">
+  <div class="app-container meeting-layout">
+    <!-- LEFT: Video area -->
+    <div class="video-section">
+      <!-- Top bar: room info -->
+      <div class="top-bar">
+        <div>
+          <span class="badge">Room</span>
+          <span id="roomLabel" class="room-label"></span>
+        </div>
+        <div class="top-bar-right">
+          <span id="usernameLabel" class="username-label"></span>
+        </div>
+      </div>
+
+      <!-- Local video -->
+      <div class="local-video-wrapper">
+        <video
+          id="localVideo"
+          autoplay
+          playsinline
+          muted
+          class="video-element local-video"
+        ></video>
+        <div class="video-label">You</div>
+      </div>
+
+      <!-- Remote videos grid -->
+      <div id="remoteVideos" class="remote-videos-grid">
+        <!-- Remote video elements will be added here dynamically -->
+      </div>
+
+      <!-- Controls: mic, camera, screen share -->
+      <div class="controls-bar">
+        <button id="btnToggleMic" class="btn control-btn">
+          🎙️ Mute
+        </button>
+        <button id="btnToggleCamera" class="btn control-btn">
+          📷 Camera Off
+        </button>
+        <button id="btnShareScreen" class="btn control-btn">
+          🖥️ Share Screen
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT: Sidebar (Participants + Chat) -->
+    <div class="sidebar">
+      <!-- Participants -->
+      <div class="sidebar-section">
+        <h2 class="sidebar-title">Participants</h2>
+        <ul id="participantsList" class="participants-list">
+          <!-- Filled by JS -->
+        </ul>
+      </div>
+
+      <!-- Chat -->
+      <div class="sidebar-section chat-section">
+        <h2 class="sidebar-title">Chat</h2>
+        <div id="chatMessages" class="chat-messages">
+          <!-- Messages will appear here -->
+        </div>
+        <form id="chatForm" class="chat-form">
+          <input
+            id="chatInput"
+            type="text"
+            class="input chat-input"
+            placeholder="Type a message and hit Enter..."
+            autocomplete="off"
+          />
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Socket.IO client script served from our Node server -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

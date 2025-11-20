@@ -1,0 +1,56 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini Zoom - Home</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="home">
+  <div class="app-container center">
+    <div class="card">
+      <h1 class="app-title">Mini Zoom</h1>
+      <p class="app-subtitle">
+        Simple WebRTC video meetings with chat & screen share.
+      </p>
+
+      <!-- Room join form -->
+      <form id="joinForm" class="form">
+        <!-- Room number input (required) -->
+        <label for="roomInput" class="label">Room Number</label>
+        <input
+          id="roomInput"
+          type="text"
+          class="input"
+          placeholder="e.g. 1234"
+          autocomplete="off"
+        />
+
+        <!-- Optional display name -->
+        <label for="nameInput" class="label">Your Name (optional)</label>
+        <input
+          id="nameInput"
+          type="text"
+          class="input"
+          placeholder="e.g. Alice"
+          autocomplete="off"
+        />
+
+        <!-- Error message area (no alerts) -->
+        <div id="homeError" class="error-text"></div>
+
+        <button type="submit" class="btn primary-btn">
+          Join Room
+        </button>
+      </form>
+
+      <p class="hint">
+        💡 Tip: Ask a friend to open this page on another device/network and
+        enter the same room number.
+      </p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
