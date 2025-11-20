@@ -271,7 +271,7 @@ pc.ontrack = (event) => {
 
     // Label for remote user
     const label = document.createElement("div");
-    label.textContent = peers[remoteId]?.username || "User";
+    label.textContent = peers[remoteId]?.username || "Guest";
     label.className = "video-label";
 
     wrapper.appendChild(video);
@@ -335,14 +335,23 @@ function removePeer(socketId) {
 function updateParticipants(users) {
   const list = document.getElementById("participantsList");
   if (!list) return;
+
   list.innerHTML = "";
-  // server sends an object map { socketId: name }
+
+  // ⭐ FIX — Save usernames for all peers
+  Object.entries(users).forEach(([id, name]) => {
+    if (!peers[id]) peers[id] = {};
+    peers[id].username = name;
+  });
+
+  // Render participants list
   Object.entries(users).forEach(([id, name]) => {
     const li = document.createElement("li");
     li.textContent = name + (socket && id === socket.id ? " (You)" : "");
     list.appendChild(li);
   });
 }
+
 
 // ===============================
 //   CHAT
