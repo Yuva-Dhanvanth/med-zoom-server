@@ -94,18 +94,19 @@ async function initLocalMedia() {
       audio: true
     });
 
-    // Create wrapper for local video (same style as remote)
+    // Wrapper (same as remote tiles)
     const wrapper = document.createElement("div");
-    wrapper.className = "remote-video-wrapper";
+    wrapper.className = "remote-video-wrapper local-tile";
 
+    // Video element
     const video = document.createElement("video");
     video.autoplay = true;
     video.playsInline = true;
-    video.muted = true; // important!
+    video.muted = true;         // VERY IMPORTANT
     video.srcObject = localStream;
     video.className = "remote-video";
 
-    // Label (You)
+    // Label
     const label = document.createElement("div");
     label.textContent = "You";
     label.className = "video-label";
@@ -113,13 +114,20 @@ async function initLocalMedia() {
     wrapper.appendChild(video);
     wrapper.appendChild(label);
 
-    document.getElementById("remoteVideos").appendChild(wrapper);
+    // ⛔ REMOVE OLD LOCAL VIDEO TILE (if reloading)
+    const existing = document.querySelector(".local-tile");
+    if (existing) existing.remove();
+
+    // ✅ Insert local video FIRST for proper grid layout
+    const grid = document.getElementById("remoteVideos");
+    grid.insertBefore(wrapper, grid.firstChild);
 
   } catch (err) {
     console.error("Media error:", err);
     alert("Unable to access camera/microphone.");
   }
 }
+
 
 
 // ===============================
