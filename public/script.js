@@ -1,16 +1,9 @@
 // public/script.js
-// ============================================================================
-// ONE FILE for both pages:
-//
-// - index.html  -> home page (enter room + name)
-// - room.html   -> meeting page (video, audio, chat, screen share)
-//
-// This version focuses on making sure that:
-//
-// - Local audio/video is sent correctly.
-// - Remote audio/video is received and actually played.
-// - TURN/STUN from the server is used for connections.
-// ============================================================================
+// ----------------------------------------------------------------------------
+// Fixed version - prevents duplicate peer connections, fixes autoplay blocking,
+// and makes remote video reliably appear by muting initially and allowing
+// click-to-unmute. Also tightens offer/answer flow.
+// ----------------------------------------------------------------------------
 
 (function () {
   const page = document.body.dataset.page;
@@ -90,8 +83,9 @@
     const peerConnections = {}; // peerId -> RTCPeerConnection
     const remoteVideoElements = {}; // peerId -> wrapper div
     const participants = {}; // peerId -> username
+    let myId = null; // our socket id (set by room-joined)
 
-    // Start it all
+    // Start
     start();
 
     // ------------------------------------------------------------------------
@@ -140,6 +134,7 @@
         const { yourId, participants: existingParticipants, iceServers } =
           payload;
 
+        myId = yourId;
         iceServersFromServer = iceServers || [];
         console.log("ICE servers from server:", iceServersFromServer);
 
@@ -148,31 +143,41 @@
         existingParticipants.forEach((p) => {
           participants[p.id] = p.username;
         });
-        renderParticipants(yourId);
+        renderParticipants(myId);
 
         // For every existing participant (except ourselves), create a PC + offer
         existingParticipants.forEach((p) => {
-          if (p.id === yourId) return;
-          createPeerConnectionAndOffer(p.id);
+          if (p.id === myId) return;
+          // Only create if we don't already have a PC for them
+          if (!peerConnections[p.id]) {
+            createPeerConnectionAndOffer(p.id);
+          }
         });
       });
 
       socket.on("user-joined", ({ socketId, username: newUserName }) => {
         console.log("User joined:", socketId, newUserName);
         participants[socketId] = newUserName;
-        renderParticipants(socket.id);
-        // We are already in the room; we start WebRTC with this new user
-        createPeerConnectionAndOffer(socketId);
+        renderParticipants(myId);
+
+        // Only create an offer if we don't already have a PC for them.
+        if (!peerConnections[socketId]) {
+          createPeerConnectionAndOffer(socketId);
+        } else {
+          console.log("PeerConnection already exists for", socketId);
+        }
       });
 
       socket.on("user-left", ({ socketId }) => {
         console.log("User left:", socketId);
         delete participants[socketId];
-        renderParticipants(socket.id);
+        renderParticipants(myId);
 
         const pc = peerConnections[socketId];
         if (pc) {
-          pc.close();
+          try {
+            pc.close();
+          } catch (e) {}
           delete peerConnections[socketId];
         }
 
@@ -189,6 +194,8 @@
 
         if (!pc) {
           pc = createPeerConnection(from);
+        } else {
+          console.log("Using existing PC for offer from", from);
         }
 
         try {
@@ -211,9 +218,13 @@
       socket.on("signal-answer", async ({ from, answer }) => {
         console.log("Received answer from", from);
         const pc = peerConnections[from];
-        if (!pc) return;
+        if (!pc) {
+          console.warn("No PC found for answer from", from);
+          return;
+        }
 
         try {
+          // setting remote description may fail if signaling state is unexpected
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
         } catch (err) {
           console.error("Error setting remote description:", err);
@@ -222,7 +233,10 @@
 
       socket.on("signal-ice-candidate", async ({ from, candidate }) => {
         const pc = peerConnections[from];
-        if (!pc) return;
+        if (!pc) {
+          console.warn("No PC for incoming ICE from", from);
+          return;
+        }
 
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
@@ -239,7 +253,14 @@
     // ====================== RTCPeerConnection helpers =======================
 
     async function createPeerConnectionAndOffer(peerId) {
-      const pc = createPeerConnection(peerId);
+      // Do not create a second PC if one already exists
+      let pc = peerConnections[peerId];
+      if (pc) {
+        console.log("createPeerConnectionAndOffer: PC already exists for", peerId);
+        return;
+      }
+
+      pc = createPeerConnection(peerId);
 
       try {
         addLocalTracksToPeer(pc);
@@ -264,6 +285,7 @@
         iceServers: iceServersFromServer,
       });
 
+      // store early so other handlers can reference it
       peerConnections[peerId] = pc;
 
       pc.onicecandidate = (event) => {
@@ -307,7 +329,17 @@
           video.autoplay = true;
           video.playsInline = true;
           video.className = "remote-video-element";
-          video.muted = true; // we WANT to hear remote audio
+
+          // IMPORTANT for autoplay: start muted. User can click to unmute.
+          video.muted = true;
+
+          // clicking toggles mute/unmute so user can hear later
+          video.addEventListener("click", () => {
+            try {
+              video.muted = !video.muted;
+              console.log("Toggled remote mute for", peerId, "->", !video.muted ? "unmuted" : "muted");
+            } catch (e) {}
+          });
 
           const label = document.createElement("div");
           label.className = "remote-video-label";
@@ -325,7 +357,7 @@
         // Attach stream (both audio + video)
         video.srcObject = remoteStream;
 
-        // Try to play (some browsers require this)
+        // Try to play (some browsers require user gesture unless muted)
         video
           .play()
           .then(() => {
