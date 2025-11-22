@@ -128,8 +128,6 @@ async function initLocalMedia() {
   }
 }
 
-
-
 // ===============================
 //   SOCKET.IO EVENTS (fixed)
 // ===============================
@@ -211,14 +209,16 @@ function registerSocketEvents() {
     removePeer(socketId);
   });
 
-  // Update participant list
-  socket.on("room-users", (users) => {
-    updateParticipants(users);
-  });
 
   // Chat message
   socket.on("chat-message", ({ message, name }) => {
     addChatMessage(name, message);
+  });
+
+  // (Optional) participants list update
+  socket.on("room-users", (usersObj) => {
+    // you can implement participant list rendering here later
+    // console.log("room-users:", usersObj);
   });
 }
 
@@ -255,37 +255,37 @@ function createPeerConnection(remoteId, isInitiator) {
 
   // REMOTE STREAM handling
   // REMOTE STREAM handler (FIXED for equal grid)
-pc.ontrack = (event) => {
-  if (!remoteVideoElements[remoteId]) {
+  pc.ontrack = (event) => {
+    if (!remoteVideoElements[remoteId]) {
 
-    // Wrapper so CSS grid works properly
-    const wrapper = document.createElement("div");
-    wrapper.className = "remote-video-wrapper";
+      // Wrapper so CSS grid works properly
+      const wrapper = document.createElement("div");
+      wrapper.className = "remote-video-wrapper";
 
-    // Video element
-    const video = document.createElement("video");
-    video.autoplay = true;
-    video.playsInline = true;
-    video.className = "remote-video";
-    video.srcObject = event.streams[0];
+      // Video element
+      const video = document.createElement("video");
+      video.autoplay = true;
+      video.playsInline = true;
+      video.className = "remote-video";
+      video.srcObject = event.streams[0];
 
-    // Label for remote user
-    const label = document.createElement("div");
-    label.textContent = peers[remoteId]?.username || "Guest";
-    label.className = "video-label";
+      // Label for remote user
+      const label = document.createElement("div");
+      label.textContent = peers[remoteId]?.username || "Guest";
+      label.className = "video-label";
 
-    wrapper.appendChild(video);
-    wrapper.appendChild(label);
+      wrapper.appendChild(video);
+      wrapper.appendChild(label);
 
-    document.getElementById("remoteVideos").appendChild(wrapper);
+      document.getElementById("remoteVideos").appendChild(wrapper);
 
-    remoteVideoElements[remoteId] = wrapper;
-  } else {
-    // Update video stream if needed
-    const videoEl = remoteVideoElements[remoteId].querySelector("video");
-    if (videoEl) videoEl.srcObject = event.streams[0];
-  }
-};
+      remoteVideoElements[remoteId] = wrapper;
+    } else {
+      // Update video stream if needed
+      const videoEl = remoteVideoElements[remoteId].querySelector("video");
+      if (videoEl) videoEl.srcObject = event.streams[0];
+    }
+  };
 
 
   pc.onconnectionstatechange = () => {
@@ -330,30 +330,6 @@ function removePeer(socketId) {
 }
 
 // ===============================
-//   PARTICIPANT LIST UI
-// ===============================
-function updateParticipants(users) {
-  const list = document.getElementById("participantsList");
-  if (!list) return;
-
-  list.innerHTML = "";
-
-  // ⭐ FIX — Save usernames for all peers
-  Object.entries(users).forEach(([id, name]) => {
-    if (!peers[id]) peers[id] = {};
-    peers[id].username = name;
-  });
-
-  // Render participants list
-  Object.entries(users).forEach(([id, name]) => {
-    const li = document.createElement("li");
-    li.textContent = name + (socket && id === socket.id ? " (You)" : "");
-    list.appendChild(li);
-  });
-}
-
-
-// ===============================
 //   CHAT
 // ===============================
 const chatForm = document.getElementById("chatForm");
@@ -389,6 +365,7 @@ function setupControls() {
   const btnMic = document.getElementById("btnToggleMic");
   const btnCam = document.getElementById("btnToggleCamera");
   const btnScreen = document.getElementById("btnShareScreen");
+  const btnLeave = document.getElementById("btnLeave");
 
   if (btnMic) {
     btnMic.addEventListener("click", () => {
@@ -433,4 +410,86 @@ function setupControls() {
       }
     });
   }
+
+  if (btnLeave) {
+    btnLeave.addEventListener("click", () => {
+      // Disconnect socket
+      if (socket) {
+        socket.disconnect();
+      }
+      // Stop all media tracks
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      // Redirect to home page
+      window.location.href = "index.html";
+    });
+  }
 }
+
+// ===============================
+//   AI ANALYSIS UPLOAD (FLASK)
+// ===============================
+
+(function attachAIHandler() {
+  const aiForm = document.getElementById("aiForm");
+  const aiFile = document.getElementById("aiFile");
+  const aiResult = document.getElementById("aiResult");
+  const aiImagePreview = document.getElementById("aiImagePreview");
+
+  if (!aiForm || !aiFile || !aiResult || !aiImagePreview) return;
+
+  aiForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const file = aiFile.files[0];
+    if (!file) {
+      aiResult.textContent = "Please choose an image file.";
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    aiResult.textContent = "Analyzing...";
+    aiImagePreview.style.display = "none";
+    aiImagePreview.src = "";
+
+    try {
+      // Change this URL if your Flask runs elsewhere
+      const res = await fetch('http://localhost:5000/predict', {
+        method: "POST",
+        body: formData
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Server error (${res.status}): ${text}`);
+      }
+
+      const data = await res.json();
+
+      // Safeguard: if server returns unexpected object
+      if (!data || !data.prediction) {
+        aiResult.textContent = "Invalid response from AI server.";
+        return;
+      }
+
+      aiResult.innerHTML = `
+        <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
+        <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
+      `;
+
+      // Show returned uploaded image (Flask returns "/uploaded")
+      if (data.image) {
+        // ensure absolute URL
+        aiImagePreview.src = "http://127.0.0.1:5000" + data.image;
+        aiImagePreview.style.display = "block";
+      }
+
+    } catch (err) {
+      console.error("AI upload failed:", err);
+      aiResult.textContent = "Error while processing the image.";
+    }
+  });
+})();

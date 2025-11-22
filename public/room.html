@@ -21,7 +21,6 @@
         </div>
       </div>
 
-    
       <!-- Remote videos grid -->
       <div id="remoteVideos" class="remote-videos-grid">
         <!-- Remote video elements will be added here dynamically -->
@@ -32,6 +31,9 @@
         <button id="btnToggleMic" class="btn control-btn">
           🎙️ Mute
         </button>
+        <button id="btnLeave" class="btn control-btn">
+          🚪 Leave
+        </button>
         <button id="btnToggleCamera" class="btn control-btn">
           📷 Camera Off
         </button>
@@ -41,15 +43,8 @@
       </div>
     </div>
 
-    <!-- RIGHT: Sidebar (Participants + Chat) -->
+    <!-- RIGHT: Sidebar (Participants + Chat + AI) -->
     <div class="sidebar">
-      <!-- Participants -->
-      <div class="sidebar-section">
-        <h2 class="sidebar-title">Participants</h2>
-        <ul id="participantsList" class="participants-list">
-          <!-- Filled by JS -->
-        </ul>
-      </div>
 
       <!-- Chat -->
       <div class="sidebar-section chat-section">
@@ -67,6 +62,32 @@
           />
         </form>
       </div>
+
+      <!-- AI Analysis -->
+      <div class="sidebar-section ai-section">
+        <h2 class="sidebar-title">AI Analysis</h2>
+
+        <form id="aiForm" class="ai-form" enctype="multipart/form-data">
+          <input
+            id="aiFile"
+            type="file"
+            name="file"
+            accept="image/*"
+            class="input"
+          />
+          <button type="submit" class="btn control-btn" style="margin-top:10px;">
+            Upload & Analyze
+          </button>
+        </form>
+
+        <div id="aiResult" class="ai-result" style="margin-top:12px;"></div>
+
+        <img id="aiImagePreview" 
+             src=""
+             alt="Uploaded preview"
+             class="ai-image-preview" />
+      </div>
+
     </div>
   </div>
 

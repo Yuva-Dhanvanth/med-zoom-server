@@ -1,8 +1,6 @@
-/* ============================================================================
-   MINI ZOOM — FINAL EQUAL GRID LAYOUT CSS
-   Local video + remote video tiles look identical in the grid.
-   Clean, modern, stable WebRTC UI.
-   ========================================================================== */
+/* ============================================================================ */
+/*  MINI ZOOM — existing styles (unchanged)                                      */
+/* ============================================================================ */
 
 :root {
   --bg-gradient: linear-gradient(135deg, #17153b, #2e236c, #433d8b);
@@ -199,6 +197,10 @@ body {
   min-width: 130px;
 }
 
+#btnLeave {
+  background-color: var(--danger);
+}
+
 /* SIDEBAR --------------------------------------------------------------- */
 
 .sidebar {
@@ -220,6 +222,30 @@ body {
 .participants-list,
 .chat-messages {
   overflow-y: auto;
+}
+
+/* AI SECTION (added) ----------------------------------------------------- */
+
+.ai-section .ai-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-result {
+  color: var(--text-main);
+  font-size: 0.95rem;
+  min-height: 38px;
+  line-height: 1.3;
+}
+
+.ai-image-preview {
+  display: none;
+  width: 100%;
+  border-radius: 12px;
+  margin-top: 10px;
+  border: 1px solid var(--border-subtle);
+  object-fit: cover;
 }
 
 /* RESPONSIVE ------------------------------------------------------------- */
