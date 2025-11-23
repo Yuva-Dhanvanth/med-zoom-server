@@ -456,10 +456,13 @@ function setupControls() {
     aiImagePreview.src = "";
 
     try {
-      const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
-        method: "POST",
-        body: formData
-      });
+    const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
+    method: "POST",
+    body: formData,
+    headers: {
+      'ngrok-skip-browser-warning': 'true'
+    }
+  });
 
       if (!res.ok) {
         const text = await res.text();
