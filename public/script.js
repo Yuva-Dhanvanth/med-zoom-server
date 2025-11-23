@@ -2,6 +2,9 @@
 //   MINI ZOOM - CLIENT LOGIC
 // ===============================
 
+// CONFIGURATION - CHANGE THIS URL WHEN NGROK RESTARTS
+const AI_SERVER_URL = 'https://santalaceous-catatonically-emile.ngrok-free.dev';
+
 let socket = null;
 let localStream = null;
 let peers = {};
@@ -395,7 +398,7 @@ function setupAICollaboration() {
         const formData = new FormData();
         formData.append("file", file);
 
-        const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
+        const res = await fetch(`${AI_SERVER_URL}/predict`, {
           method: "POST",
           body: formData,
           headers: { 'ngrok-skip-browser-warning': 'true' }
