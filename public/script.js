@@ -456,7 +456,7 @@ function setupControls() {
     aiImagePreview.src = "";
 
     try {
-      const res = await fetch('https://02efcd695e7c3d.lhr.life/predict', {
+      const res = await fetch(' https://2104e240758403.lhr.life/predict', {
         method: "POST",
         body: formData
       });
@@ -480,7 +480,7 @@ function setupControls() {
 
       // FIXED: Show uploaded image using the correct endpoint
       // ✅ CORRECT - use your public AI URL
-      aiImagePreview.src = "https://02efcd695e7c3d.lhr.life/uploaded_image?" + new Date().getTime();
+      aiImagePreview.src = " https://2104e240758403.lhr.lifeuploaded_image?" + new Date().getTime();
       aiImagePreview.style.display = "block";
 
     } catch (err) {
