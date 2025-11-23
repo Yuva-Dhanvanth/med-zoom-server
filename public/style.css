@@ -840,3 +840,30 @@ body {
   height: 100%;
   object-fit: cover;
 }
+
+/* Viewer Mode Styles */
+.viewer-message {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 20px;
+}
+
+.viewer-message-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.viewer-message-text {
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+}
+
+.viewer-message-subtext {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+/* Upload form visibility control */
+.ai-form[style*="display: none"] {
+  display: none !important;
+}

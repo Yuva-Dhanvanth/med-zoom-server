@@ -175,21 +175,47 @@ function registerSocketEvents() {
     addChatMessage(name, message);
   });
 
+  socket.on("room-users", (users) => {
+    updateParticipantsList(users);
+  });
+
+  // AI ANALYSIS BROADCAST
   socket.on("ai-analysis-update", ({ imageData, prediction, confidence, userName }) => {
-    console.log("Received AI analysis from:", userName);
+    console.log("📥 Received AI analysis from:", userName);
     updateAIDisplay(imageData, prediction, confidence, userName);
     
     // Show notification in chat
     addChatMessage("System", `${userName} shared a medical image analysis: ${prediction} (${(confidence * 100).toFixed(1)}%)`);
   });
 
-  socket.on("room-users", (users) => {
-    updateParticipantsList(users);
+  // SHARED POPUP EVENTS
+  socket.on("ai-popup-opened", ({ userName }) => {
+    console.log(`📢 ${userName} opened AI popup`);
+    openAIPopupAsViewer(userName);
+  });
+
+  socket.on("ai-popup-closed", ({ userName }) => {
+    console.log(`📢 ${userName} closed AI popup`);
+    closeAIPopup();
+  });
+
+  // AI ANALYSIS STATUS
+  socket.on("ai-analysis-status", ({ userName, status, message }) => {
+    const aiResult = document.getElementById("aiResult");
+    if (aiResult && status === "analyzing") {
+      aiResult.innerHTML = `
+        <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+          <div style="font-size: 2rem; margin-bottom: 10px;">🔬</div>
+          <div><strong>${userName}</strong> is analyzing a medical image</div>
+          <div style="font-size: 0.9rem; margin-top: 8px;">${message}</div>
+        </div>
+      `;
+    }
   });
 }
 
 // ===============================
-//   POPUP MANAGEMENT
+//   POPUP MANAGEMENT - ENHANCED
 // ===============================
 function setupPopups() {
   const btnParticipants = document.getElementById("btnParticipants");
@@ -198,8 +224,11 @@ function setupPopups() {
   const closeAIPopup = document.getElementById("closeAIPopup");
   const participantsPopup = document.getElementById("participantsPopup");
   const aiPopup = document.getElementById("aiPopup");
+  const aiForm = document.getElementById("aiForm");
 
-  // Participants popup
+  let isPopupInitiator = false;
+
+  // Participants popup (local only)
   btnParticipants.addEventListener("click", () => {
     participantsPopup.style.display = "flex";
   });
@@ -208,17 +237,13 @@ function setupPopups() {
     participantsPopup.style.display = "none";
   });
 
-  // AI popup
+  // AI popup (shared with everyone)
   btnAskAI.addEventListener("click", () => {
-    aiPopup.style.display = "flex";
-    // Reset form
-    document.getElementById("aiFile").value = "";
-    document.getElementById("aiResult").textContent = "";
-    document.getElementById("aiImagePreview").style.display = "none";
+    openAIPopupAsInitiator();
   });
 
   closeAIPopup.addEventListener("click", () => {
-    aiPopup.style.display = "none";
+    closeAIPopup();
   });
 
   // Close popups when clicking outside
@@ -226,9 +251,82 @@ function setupPopups() {
     popup.addEventListener("click", (e) => {
       if (e.target === popup) {
         popup.style.display = "none";
+        if (popup === aiPopup && isPopupInitiator) {
+          socket.emit("close-ai-popup", {
+            roomId: roomId,
+            userName: username
+          });
+          isPopupInitiator = false;
+        }
       }
     });
   });
+}
+
+function openAIPopupAsInitiator() {
+  const aiPopup = document.getElementById("aiPopup");
+  const aiForm = document.getElementById("aiForm");
+  
+  isPopupInitiator = true;
+  aiPopup.style.display = "flex";
+  
+  // Show upload form for initiator
+  if (aiForm) aiForm.style.display = "block";
+  
+  // Reset form
+  document.getElementById("aiFile").value = "";
+  document.getElementById("aiResult").textContent = "";
+  document.getElementById("aiImagePreview").style.display = "none";
+  
+  // Notify everyone that AI popup was opened
+  socket.emit("open-ai-popup", {
+    roomId: roomId,
+    userName: username
+  });
+}
+
+function openAIPopupAsViewer(userName) {
+  const aiPopup = document.getElementById("aiPopup");
+  const aiForm = document.getElementById("aiForm");
+  const aiResult = document.getElementById("aiResult");
+  
+  isPopupInitiator = false;
+  aiPopup.style.display = "flex";
+  
+  // Hide upload form for viewers
+  if (aiForm) aiForm.style.display = "none";
+  
+  // Show viewer message
+  if (aiResult) {
+    aiResult.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+        <div style="font-size: 2rem; margin-bottom: 10px;">🩺</div>
+        <div><strong>${userName}</strong> is analyzing a medical image</div>
+        <div style="font-size: 0.9rem; margin-top: 8px;">Waiting for analysis results...</div>
+      </div>
+    `;
+  }
+  
+  // Clear any previous image
+  const aiImagePreview = document.getElementById("aiImagePreview");
+  if (aiImagePreview) {
+    aiImagePreview.style.display = "none";
+    aiImagePreview.src = "";
+  }
+}
+
+function closeAIPopup() {
+  const aiPopup = document.getElementById("aiPopup");
+  aiPopup.style.display = "none";
+  
+  // Notify everyone that AI popup was closed
+  if (isPopupInitiator) {
+    socket.emit("close-ai-popup", {
+      roomId: roomId,
+      userName: username
+    });
+  }
+  isPopupInitiator = false;
 }
 
 function updateParticipantsList(users) {
@@ -265,6 +363,12 @@ function setupAICollaboration() {
       return;
     }
 
+    // Show analyzing message to everyone immediately
+    socket.emit("ai-analysis-start", {
+      roomId: roomId,
+      userName: username
+    });
+
     // Convert to data URL for preview and sharing
     const reader = new FileReader();
     reader.onload = async function(e) {
@@ -273,7 +377,7 @@ function setupAICollaboration() {
       // Show local preview immediately
       aiImagePreview.src = imageData;
       aiImagePreview.style.display = "block";
-      aiResult.textContent = "Analyzing...";
+      aiResult.textContent = "Analyzing medical image...";
 
       try {
         const formData = new FormData();
@@ -309,6 +413,13 @@ function setupAICollaboration() {
       } catch (err) {
         console.error("AI analysis failed:", err);
         aiResult.textContent = "Error processing image. Please try again.";
+        
+        // Notify everyone about the error
+        socket.emit("ai-analysis-error", {
+          roomId: roomId,
+          userName: username,
+          error: err.message
+        });
       }
     };
     reader.readAsDataURL(file);

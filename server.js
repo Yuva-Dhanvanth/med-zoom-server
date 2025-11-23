@@ -68,16 +68,54 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("room-users", rooms[roomId]);
   });
 
-  // AI ANALYSIS BROADCAST
-socket.on("ai-analysis-result", ({ roomId, imageData, prediction, confidence, userName }) => {
-  console.log(`AI analysis broadcast in room ${roomId} by ${userName}`);
-  io.to(roomId).emit("ai-analysis-update", {
-    imageData,
-    prediction,
-    confidence,
-    userName
+  // ==========================
+  //   SHARED POPUP MANAGEMENT
+  // ==========================
+  socket.on("open-ai-popup", ({ roomId, userName }) => {
+    console.log(`🩺 ${userName} opened AI popup in room ${roomId}`);
+    // Broadcast to everyone except sender
+    socket.to(roomId).emit("ai-popup-opened", { userName });
   });
-});
+
+  socket.on("close-ai-popup", ({ roomId, userName }) => {
+    console.log(`❌ ${userName} closed AI popup in room ${roomId}`);
+    // Broadcast to everyone except sender
+    socket.to(roomId).emit("ai-popup-closed", { userName });
+  });
+
+  // ==========================
+  //   AI ANALYSIS BROADCAST
+  // ==========================
+  socket.on("ai-analysis-result", ({ roomId, imageData, prediction, confidence, userName }) => {
+    console.log(`📊 AI analysis broadcast in room ${roomId} by ${userName}`);
+    
+    // Broadcast to everyone in the room including sender
+    io.to(roomId).emit("ai-analysis-update", {
+      imageData,
+      prediction,
+      confidence,
+      userName
+    });
+  });
+
+  // AI Analysis Status Events
+  socket.on("ai-analysis-start", ({ roomId, userName }) => {
+    console.log(`🔬 ${userName} started AI analysis in room ${roomId}`);
+    socket.to(roomId).emit("ai-analysis-status", { 
+      userName, 
+      status: "analyzing",
+      message: `${userName} is analyzing a medical image...`
+    });
+  });
+
+  socket.on("ai-analysis-error", ({ roomId, userName, error }) => {
+    console.log(`❌ AI analysis failed by ${userName}: ${error}`);
+    socket.to(roomId).emit("ai-analysis-status", { 
+      userName, 
+      status: "error",
+      message: `Analysis failed: ${error}`
+    });
+  });
 
   // --------------------------
   // OFFER SENT TO A USER

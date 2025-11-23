@@ -70,33 +70,35 @@
   </div>
 
   <!-- AI Analysis Popup -->
-  <div id="aiPopup" class="popup-overlay">
-    <div class="popup-content">
-      <div class="popup-header">
-        <h2>🩺 Medical Image Analysis</h2>
-        <button id="closeAIPopup" class="btn close-btn">×</button>
-      </div>
-      
-      <div class="popup-body">
-        <form id="aiForm" class="ai-form">
-          <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
-          <input
-            id="aiFile"
-            type="file"
-            name="file"
-            accept="image/*"
-            class="input"
-          />
-          <button type="submit" class="btn primary-btn">
-            Upload & Analyze
-          </button>
-        </form>
+    <div id="aiPopup" class="popup-overlay">
+      <div class="popup-content">
+        <div class="popup-header">
+          <h2>🩺 Medical Image Analysis</h2>
+          <button id="closeAIPopup" class="btn close-btn">×</button>
+        </div>
+        
+        <div class="popup-body">
+          <!-- Upload Form (only visible to initiator) -->
+          <form id="aiForm" class="ai-form">
+            <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
+            <input
+              id="aiFile"
+              type="file"
+              name="file"
+              accept="image/*"
+              class="input"
+            />
+            <button type="submit" class="btn primary-btn">
+              Upload & Analyze
+            </button>
+          </form>
 
-        <div id="aiResult" class="ai-result"></div>
-        <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
+          <!-- Results Area (visible to everyone) -->
+          <div id="aiResult" class="ai-result"></div>
+          <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
+        </div>
       </div>
     </div>
-  </div>
 
   <!-- Participants Popup -->
   <div id="participantsPopup" class="popup-overlay">
