@@ -196,7 +196,7 @@ function registerSocketEvents() {
 
   socket.on("ai-popup-closed", ({ userName }) => {
     console.log(`📢 ${userName} closed AI popup`);
-    closeAIPopup();
+    closeAIPopupAsViewer();
   });
 
   // AI ANALYSIS STATUS
@@ -217,6 +217,9 @@ function registerSocketEvents() {
 // ===============================
 //   POPUP MANAGEMENT - ENHANCED
 // ===============================
+let isPopupInitiator = false;
+let currentInitiator = null;
+
 function setupPopups() {
   const btnParticipants = document.getElementById("btnParticipants");
   const btnAskAI = document.getElementById("btnAskAI");
@@ -225,8 +228,6 @@ function setupPopups() {
   const participantsPopup = document.getElementById("participantsPopup");
   const aiPopup = document.getElementById("aiPopup");
   const aiForm = document.getElementById("aiForm");
-
-  let isPopupInitiator = false;
 
   // Participants popup (local only)
   btnParticipants.addEventListener("click", () => {
@@ -243,20 +244,27 @@ function setupPopups() {
   });
 
   closeAIPopup.addEventListener("click", () => {
-    closeAIPopup();
+    if (isPopupInitiator) {
+      // Only initiator can close for everyone
+      closeAIPopupAsInitiator();
+    } else {
+      // Viewers can only close their own popup locally
+      closeAIPopupAsViewer();
+    }
   });
 
   // Close popups when clicking outside
   [participantsPopup, aiPopup].forEach(popup => {
     popup.addEventListener("click", (e) => {
       if (e.target === popup) {
-        popup.style.display = "none";
-        if (popup === aiPopup && isPopupInitiator) {
-          socket.emit("close-ai-popup", {
-            roomId: roomId,
-            userName: username
-          });
-          isPopupInitiator = false;
+        if (popup === aiPopup) {
+          if (isPopupInitiator) {
+            closeAIPopupAsInitiator();
+          } else {
+            closeAIPopupAsViewer();
+          }
+        } else {
+          popup.style.display = "none";
         }
       }
     });
@@ -268,6 +276,7 @@ function openAIPopupAsInitiator() {
   const aiForm = document.getElementById("aiForm");
   
   isPopupInitiator = true;
+  currentInitiator = username;
   aiPopup.style.display = "flex";
   
   // Show upload form for initiator
@@ -291,6 +300,7 @@ function openAIPopupAsViewer(userName) {
   const aiResult = document.getElementById("aiResult");
   
   isPopupInitiator = false;
+  currentInitiator = userName;
   aiPopup.style.display = "flex";
   
   // Hide upload form for viewers
@@ -315,17 +325,26 @@ function openAIPopupAsViewer(userName) {
   }
 }
 
-function closeAIPopup() {
+function closeAIPopupAsInitiator() {
   const aiPopup = document.getElementById("aiPopup");
   aiPopup.style.display = "none";
   
+  // Reset state
+  isPopupInitiator = false;
+  currentInitiator = null;
+  
   // Notify everyone that AI popup was closed
-  if (isPopupInitiator) {
-    socket.emit("close-ai-popup", {
-      roomId: roomId,
-      userName: username
-    });
-  }
+  socket.emit("close-ai-popup", {
+    roomId: roomId,
+    userName: username
+  });
+}
+
+function closeAIPopupAsViewer() {
+  const aiPopup = document.getElementById("aiPopup");
+  aiPopup.style.display = "none";
+  
+  // Only reset local state, don't broadcast
   isPopupInitiator = false;
 }
 
