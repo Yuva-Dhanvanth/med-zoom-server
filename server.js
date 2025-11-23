@@ -68,20 +68,16 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("room-users", rooms[roomId]);
   });
 
-  // ==========================
-  //   AI ANALYSIS BROADCAST
-  // ==========================
-  socket.on("ai-analysis-result", ({ roomId, imageData, prediction, confidence, userName }) => {
-    console.log(`📊 AI analysis broadcast in room ${roomId} by ${userName}`);
-    
-    // Broadcast to everyone in the room including sender
-    io.to(roomId).emit("ai-analysis-update", {
-      imageData,
-      prediction,
-      confidence,
-      userName
-    });
+  // AI ANALYSIS BROADCAST
+socket.on("ai-analysis-result", ({ roomId, imageData, prediction, confidence, userName }) => {
+  console.log(`AI analysis broadcast in room ${roomId} by ${userName}`);
+  io.to(roomId).emit("ai-analysis-update", {
+    imageData,
+    prediction,
+    confidence,
+    userName
   });
+});
 
   // --------------------------
   // OFFER SENT TO A USER

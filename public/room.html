@@ -29,10 +29,10 @@
 
       <!-- Remote videos grid -->
       <div id="remoteVideos" class="remote-videos-grid">
-        <!-- Remote video elements will be added here dynamically -->
+        <!-- Videos will be added here automatically -->
       </div>
 
-      <!-- Controls: mic, camera, screen share -->
+      <!-- Controls -->
       <div class="controls-bar">
         <button id="btnToggleMic" class="btn control-btn">
           🎙️ Mute
@@ -51,7 +51,6 @@
 
     <!-- RIGHT: Sidebar (Only Chat) -->
     <div class="sidebar">
-      <!-- Chat -->
       <div class="sidebar-section chat-section">
         <h2 class="sidebar-title">Chat</h2>
         <div id="chatMessages" class="chat-messages">
@@ -79,7 +78,7 @@
       </div>
       
       <div class="popup-body">
-        <form id="aiForm" class="ai-form" enctype="multipart/form-data">
+        <form id="aiForm" class="ai-form">
           <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
           <input
             id="aiFile"
@@ -88,17 +87,13 @@
             accept="image/*"
             class="input"
           />
-          <button type="submit" class="btn primary-btn" style="margin-top:10px;">
+          <button type="submit" class="btn primary-btn">
             Upload & Analyze
           </button>
         </form>
 
         <div id="aiResult" class="ai-result"></div>
-
-        <img id="aiImagePreview" 
-             src=""
-             alt="Medical image preview"
-             class="ai-image-preview" />
+        <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
       </div>
     </div>
   </div>
@@ -119,7 +114,6 @@
     </div>
   </div>
 
-  <!-- Socket.IO client script served from our Node server -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="script.js"></script>
 </body>
