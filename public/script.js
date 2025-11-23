@@ -86,7 +86,6 @@ async function initRoomPage() {
   // Initialize AI collaboration
   setupAICollaboration();
 }
-
 // ===============================
 //   GET LOCAL CAMERA/MIC
 // ===============================
@@ -537,5 +536,173 @@ function setupControls() {
       // Redirect to home page
       window.location.href = "index.html";
     });
+  }
+}
+
+// ===============================
+//   POPUP MANAGEMENT
+// ===============================
+
+function setupPopups() {
+  const btnParticipants = document.getElementById("btnParticipants");
+  const btnAskAI = document.getElementById("btnAskAI");
+  const closeParticipantsPopup = document.getElementById("closeParticipantsPopup");
+  const closeAIPopup = document.getElementById("closeAIPopup");
+  const participantsPopup = document.getElementById("participantsPopup");
+  const aiPopup = document.getElementById("aiPopup");
+
+  // Participants popup
+  btnParticipants.addEventListener("click", () => {
+    participantsPopup.style.display = "flex";
+    updateParticipantsList();
+  });
+
+  closeParticipantsPopup.addEventListener("click", () => {
+    participantsPopup.style.display = "none";
+  });
+
+  // AI popup
+  btnAskAI.addEventListener("click", () => {
+    aiPopup.style.display = "flex";
+    // Reset AI form when opening
+    document.getElementById("aiFile").value = "";
+    document.getElementById("aiResult").textContent = "";
+    document.getElementById("aiImagePreview").style.display = "none";
+  });
+
+  closeAIPopup.addEventListener("click", () => {
+    aiPopup.style.display = "none";
+  });
+
+  // Close popups when clicking outside
+  [participantsPopup, aiPopup].forEach(popup => {
+    popup.addEventListener("click", (e) => {
+      if (e.target === popup) {
+        popup.style.display = "none";
+      }
+    });
+  });
+}
+
+function updateParticipantsList() {
+  const participantsList = document.getElementById("participantsList");
+  if (!participantsList) return;
+
+  // For now, we'll just show current user
+  // You can expand this later with socket.io room users
+  participantsList.innerHTML = `
+    <div class="participant-item">
+      <div class="participant-avatar">${username.charAt(0).toUpperCase()}</div>
+      <div class="participant-name">${username} (You)</div>
+    </div>
+  `;
+}
+
+// ===============================
+//   MODIFIED AI COLLABORATION FOR POPUP
+// ===============================
+
+function setupAICollaboration() {
+  const aiForm = document.getElementById("aiForm");
+  const aiFile = document.getElementById("aiFile");
+  const aiResult = document.getElementById("aiResult");
+  const aiImagePreview = document.getElementById("aiImagePreview");
+
+  if (!aiForm || !aiFile || !aiResult || !aiImagePreview) return;
+
+  aiForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const file = aiFile.files[0];
+    if (!file) {
+      aiResult.textContent = "Please choose an image file.";
+      return;
+    }
+
+    // Convert to data URL for sharing with other participants
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const imageData = e.target.result; // data:image/png;base64,...
+      
+      // Show local preview immediately
+      aiImagePreview.src = imageData;
+      aiImagePreview.style.display = "block";
+      aiResult.textContent = "Analyzing...";
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
+          method: "POST",
+          body: formData,
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          }
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Server error (${res.status}): ${text}`);
+        }
+
+        const data = await res.json();
+
+        if (!data || !data.prediction) {
+          aiResult.textContent = "Invalid response from AI server.";
+          return;
+        }
+
+        aiResult.innerHTML = `
+          <div class="shared-by">Shared by: You</div>
+          <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
+          <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
+          <div style="margin-top: 8px; font-size: 0.8em; color: var(--text-muted);">
+            🔄 Shared with all participants
+          </div>
+        `;
+
+        // ✅ BROADCAST TO EVERYONE IN THE ROOM
+        socket.emit("ai-analysis-result", {
+          roomId: roomId,
+          imageData: imageData,
+          prediction: data.prediction,
+          confidence: data.confidence,
+          userName: username
+        });
+
+        console.log("📤 Analysis shared with room");
+
+      } catch (err) {
+        console.error("AI upload failed:", err);
+        aiResult.textContent = "Error while processing the image.";
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateAIDisplay(imageData, prediction, confidence, userName) {
+  const aiResult = document.getElementById("aiResult");
+  const aiImagePreview = document.getElementById("aiImagePreview");
+
+  // Update the popup if it's open
+  aiImagePreview.src = imageData;
+  aiImagePreview.style.display = "block";
+  
+  aiResult.innerHTML = `
+    <div class="shared-by">Shared by: ${escapeHtml(userName)}</div>
+    <div><strong>Prediction:</strong> ${escapeHtml(String(prediction))}</div>
+    <div><strong>Confidence:</strong> ${Number(confidence).toFixed(4)}</div>
+  `;
+
+  // Also show notification in chat
+  const chatMessages = document.getElementById("chatMessages");
+  if (chatMessages) {
+    const notification = document.createElement("div");
+    notification.className = "chat-msg";
+    notification.innerHTML = `🔬 <strong>${escapeHtml(userName)}</strong> shared a medical image analysis: <strong>${escapeHtml(prediction)}</strong> (${(confidence * 100).toFixed(1)}%)`;
+    chatMessages.appendChild(notification);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   }
 }

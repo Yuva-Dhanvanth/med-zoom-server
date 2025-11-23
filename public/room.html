@@ -17,6 +17,12 @@
           <span id="roomLabel" class="room-label"></span>
         </div>
         <div class="top-bar-right">
+          <button id="btnParticipants" class="btn participants-btn">
+            👥 Participants
+          </button>
+          <button id="btnAskAI" class="btn ai-btn">
+            🩺 Ask AI
+          </button>
           <span id="usernameLabel" class="username-label"></span>
         </div>
       </div>
@@ -43,9 +49,8 @@
       </div>
     </div>
 
-    <!-- RIGHT: Sidebar (Participants + Chat + AI) -->
+    <!-- RIGHT: Sidebar (Only Chat) -->
     <div class="sidebar">
-
       <!-- Chat -->
       <div class="sidebar-section chat-section">
         <h2 class="sidebar-title">Chat</h2>
@@ -62,11 +67,18 @@
           />
         </form>
       </div>
+    </div>
+  </div>
 
-      <!-- AI Analysis -->
-      <div class="sidebar-section ai-section">
-        <h2 class="sidebar-title">🩺 Medical Image Analysis</h2>
-
+  <!-- AI Analysis Popup -->
+  <div id="aiPopup" class="popup-overlay">
+    <div class="popup-content">
+      <div class="popup-header">
+        <h2>🩺 Medical Image Analysis</h2>
+        <button id="closeAIPopup" class="btn close-btn">×</button>
+      </div>
+      
+      <div class="popup-body">
         <form id="aiForm" class="ai-form" enctype="multipart/form-data">
           <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
           <input
@@ -76,7 +88,7 @@
             accept="image/*"
             class="input"
           />
-          <button type="submit" class="btn control-btn" style="margin-top:10px;">
+          <button type="submit" class="btn primary-btn" style="margin-top:10px;">
             Upload & Analyze
           </button>
         </form>
@@ -88,7 +100,22 @@
              alt="Medical image preview"
              class="ai-image-preview" />
       </div>
+    </div>
+  </div>
 
+  <!-- Participants Popup -->
+  <div id="participantsPopup" class="popup-overlay">
+    <div class="popup-content">
+      <div class="popup-header">
+        <h2>👥 Participants</h2>
+        <button id="closeParticipantsPopup" class="btn close-btn">×</button>
+      </div>
+      
+      <div class="popup-body">
+        <div id="participantsList" class="participants-list">
+          <!-- Participants will be listed here -->
+        </div>
+      </div>
     </div>
   </div>
 
