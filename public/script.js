@@ -428,7 +428,7 @@ function setupControls() {
 }
 
 // ===============================
-//   AI ANALYSIS UPLOAD (FLASK)
+//   AI ANALYSIS UPLOAD (FLASK) - FIXED
 // ===============================
 
 (function attachAIHandler() {
@@ -456,7 +456,6 @@ function setupControls() {
     aiImagePreview.src = "";
 
     try {
-      // Change this URL if your Flask runs elsewhere
       const res = await fetch('http://localhost:5000/predict', {
         method: "POST",
         body: formData
@@ -469,7 +468,6 @@ function setupControls() {
 
       const data = await res.json();
 
-      // Safeguard: if server returns unexpected object
       if (!data || !data.prediction) {
         aiResult.textContent = "Invalid response from AI server.";
         return;
@@ -480,12 +478,9 @@ function setupControls() {
         <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
       `;
 
-      // Show returned uploaded image (Flask returns "/uploaded")
-      if (data.image) {
-        // ensure absolute URL
-        aiImagePreview.src = "http://127.0.0.1:5000" + data.image;
-        aiImagePreview.style.display = "block";
-      }
+      // FIXED: Show uploaded image using the correct endpoint
+      aiImagePreview.src = "http://127.0.0.1:5000/uploaded_image?" + new Date().getTime();
+      aiImagePreview.style.display = "block";
 
     } catch (err) {
       console.error("AI upload failed:", err);
@@ -493,3 +488,4 @@ function setupControls() {
     }
   });
 })();
+// ===============================
