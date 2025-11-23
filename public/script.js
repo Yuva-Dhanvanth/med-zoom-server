@@ -456,7 +456,7 @@ function setupControls() {
     aiImagePreview.src = "";
 
     try {
-      const res = await fetch('http://localhost:5000/predict', {
+      const res = await fetch('https://02efcd695e7c3d.lhr.life/predict', {
         method: "POST",
         body: formData
       });
@@ -479,7 +479,8 @@ function setupControls() {
       `;
 
       // FIXED: Show uploaded image using the correct endpoint
-      aiImagePreview.src = "http://127.0.0.1:5000/uploaded_image?" + new Date().getTime();
+      // ✅ CORRECT - use your public AI URL
+      aiImagePreview.src = "https://02efcd695e7c3d.lhr.life/uploaded_image?" + new Date().getTime();
       aiImagePreview.style.display = "block";
 
     } catch (err) {
