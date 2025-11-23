@@ -426,7 +426,6 @@ function setupControls() {
     });
   }
 }
-
 // ===============================
 //   AI ANALYSIS UPLOAD (FLASK) - FIXED
 // ===============================
@@ -456,13 +455,13 @@ function setupControls() {
     aiImagePreview.src = "";
 
     try {
-    const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
-    method: "POST",
-    body: formData,
-    headers: {
-      'ngrok-skip-browser-warning': 'true'
-    }
-  });
+      const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
+        method: "POST",
+        body: formData,
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
 
       if (!res.ok) {
         const text = await res.text();
@@ -481,10 +480,16 @@ function setupControls() {
         <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
       `;
 
-      // FIXED: Show uploaded image using the correct endpoint
-      // ✅ CORRECT - use your public AI URL
-      aiImagePreview.src = "https://santalaceous-catatonically-emile.ngrok-free.dev/uploaded_image?" + new Date().getTime();
-      aiImagePreview.style.display = "block";
+      // FIXED: Load image with ngrok header workaround
+      const img = new Image();
+      img.src = "https://santalaceous-catatonically-emile.ngrok-free.dev/uploaded_image?" + new Date().getTime();
+      img.onload = function() {
+        aiImagePreview.src = this.src;
+        aiImagePreview.style.display = "block";
+      };
+      img.onerror = function() {
+        aiResult.innerHTML += `<div style="color: orange;">Note: Image preview unavailable</div>`;
+      };
 
     } catch (err) {
       console.error("AI upload failed:", err);
@@ -492,4 +497,3 @@ function setupControls() {
     }
   });
 })();
-// ===============================
