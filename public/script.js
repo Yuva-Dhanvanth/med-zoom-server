@@ -482,21 +482,14 @@ function setupControls() {
 
      
       // FIXED: Load image with CORS workaround
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = "https://santalaceous-catatonically-emile.ngrok-free.dev/uploaded_image?" + new Date().getTime();
-        img.onload = function() {
-          aiImagePreview.src = this.src;
-          aiImagePreview.style.display = "block";
-        };
-        img.onerror = function() {
-          console.error("Image failed to load");
-          aiResult.innerHTML += `<div style="color: orange;">Note: Image preview unavailable - CORS issue</div>`;
-        };
+        // SIMPLE DIRECT IMAGE LOADING
+        aiImagePreview.crossOrigin = "anonymous";
+        aiImagePreview.src = "https://santalaceous-catatonically-emile.ngrok-free.dev/uploaded_image?" + new Date().getTime();
+        aiImagePreview.style.display = "block";
 
     } catch (err) {
       console.error("AI upload failed:", err);
       aiResult.textContent = "Error while processing the image.";
     }
-  });
+  }); 
 })();
