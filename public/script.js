@@ -8,6 +8,7 @@ let peers = {};
 let remoteVideoElements = {};
 let roomId = null;
 let username = null;
+let isPopupInitiator = false;
 
 // ICE servers
 const iceServers = {
@@ -215,11 +216,8 @@ function registerSocketEvents() {
 }
 
 // ===============================
-//   POPUP MANAGEMENT - ENHANCED
+//   POPUP MANAGEMENT - FIXED
 // ===============================
-let isPopupInitiator = false;
-let currentInitiator = null;
-
 function setupPopups() {
   const btnParticipants = document.getElementById("btnParticipants");
   const btnAskAI = document.getElementById("btnAskAI");
@@ -245,10 +243,8 @@ function setupPopups() {
 
   closeAIPopup.addEventListener("click", () => {
     if (isPopupInitiator) {
-      // Only initiator can close for everyone
       closeAIPopupAsInitiator();
     } else {
-      // Viewers can only close their own popup locally
       closeAIPopupAsViewer();
     }
   });
@@ -276,7 +272,6 @@ function openAIPopupAsInitiator() {
   const aiForm = document.getElementById("aiForm");
   
   isPopupInitiator = true;
-  currentInitiator = username;
   aiPopup.style.display = "flex";
   
   // Show upload form for initiator
@@ -300,7 +295,6 @@ function openAIPopupAsViewer(userName) {
   const aiResult = document.getElementById("aiResult");
   
   isPopupInitiator = false;
-  currentInitiator = userName;
   aiPopup.style.display = "flex";
   
   // Hide upload form for viewers
@@ -331,7 +325,6 @@ function closeAIPopupAsInitiator() {
   
   // Reset state
   isPopupInitiator = false;
-  currentInitiator = null;
   
   // Notify everyone that AI popup was closed
   socket.emit("close-ai-popup", {
