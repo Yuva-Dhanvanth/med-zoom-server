@@ -241,7 +241,7 @@ function registerSocketEvents() {
 }
 
 // ===============================
-//   COLLABORATIVE AI ANALYSIS - MODIFIED
+//   COLLABORATIVE AI ANALYSIS - FIXED
 // ===============================
 function setupAICollaboration() {
   const aiForm = document.getElementById("aiForm");
@@ -260,7 +260,7 @@ function setupAICollaboration() {
       return;
     }
 
-    // Convert to data URL for sharing with other participants
+    // ✅ USE LOCAL PREVIEW ONLY - NO SERVER IMAGE LOADING
     const reader = new FileReader();
     reader.onload = async function(e) {
       const imageData = e.target.result; // data:image/png;base64,...
@@ -319,7 +319,7 @@ function setupAICollaboration() {
         aiResult.textContent = "Error while processing the image.";
       }
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(file); // This creates local data URL
   });
 }
 
