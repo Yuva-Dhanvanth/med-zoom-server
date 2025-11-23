@@ -482,20 +482,10 @@ function setupControls() {
 
      
       // FIXED: Load image with CORS workaround
-       // DOWNLOAD APPROACH - BYPASS CORS
-        const imageUrl = "https://santalaceous-catatonically-emile.ngrok-free.dev/uploaded_image?" + new Date().getTime();
-        fetch(imageUrl, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        })
-        .then(response => response.blob())
-        .then(blob => {
-          const url = URL.createObjectURL(blob);
-          aiImagePreview.src = url;
-          aiImagePreview.style.display = "block";
-        })
-        .catch(err => {
-          console.log("Image preview skipped");
-        });
+      // SIMPLE DIRECT APPROACH - PRODUCTION READY
+      aiImagePreview.crossOrigin = "anonymous";
+      aiImagePreview.src = "https://santalaceous-catatonically-emile.ngrok-free.dev/uploaded_image?" + new Date().getTime();
+      aiImagePreview.style.display = "block";
 
     } catch (err) {
       console.error("AI upload failed:", err);
