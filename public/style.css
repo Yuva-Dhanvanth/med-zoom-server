@@ -1,12 +1,12 @@
 /* ============================================================================ */
-/*  MINI ZOOM — COMPLETE CORRECTED STYLES                                      */
+/*  MEDIZOOM — MEDICAL VIDEO CONSULTATION STYLES                               */
 /* ============================================================================ */
 
 :root {
-  --bg-gradient: linear-gradient(135deg, #17153b, #2e236c, #433d8b);
+  --bg-gradient: linear-gradient(135deg, #0f2b46, #1a3a5f, #2a4a6e);
   --card-bg: rgba(18, 18, 34, 0.95);
-  --accent: #ffb703;
-  --accent-soft: rgba(255, 183, 3, 0.12);
+  --accent: #4CAF50;
+  --accent-soft: rgba(76, 175, 80, 0.12);
   --text-main: #f5f5ff;
   --text-muted: #c5c5e5;
   --danger: #ff4b5c;
@@ -33,7 +33,7 @@ body {
   background-attachment: fixed;
 }
 
-/* BUTTON BASE STYLES (ADDED) ---------------------------------------------- */
+/* BUTTON BASE STYLES ------------------------------------------------------ */
 
 .btn {
   border: none;
@@ -120,7 +120,7 @@ body {
   margin-top: 10px;
   padding: 12px 16px;
   background: var(--accent);
-  color: #111;
+  color: white;
   border-radius: 999px;
   font-weight: 600;
   border: none;
@@ -159,7 +159,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 0; /* Important for flex children */
+  min-height: 0;
 }
 
 .top-bar {
@@ -187,7 +187,7 @@ body {
   font-weight: 600;
 }
 
-/* REMOTE + LOCAL VIDEO GRID (BOTH INSIDE SAME GRID!) --------------------- */
+/* REMOTE + LOCAL VIDEO GRID --------------------------------------------- */
 
 .remote-videos-grid {
   display: grid;
@@ -196,23 +196,21 @@ body {
   width: 100%;
   height: 100%;
   align-items: stretch;
-  flex: 1; /* Takes available space */
-  min-height: 0; /* Allows proper flex shrinking */
-  overflow: hidden; /* Prevents layout issues */
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* Video tile wrapper */
 .remote-video-wrapper {
   position: relative;
   background: #000;
   border-radius: var(--radius-lg);
   overflow: hidden;
   width: 100%;
-  padding-top: 56.25%; /* Maintains 16:9 aspect ratio */
+  padding-top: 56.25%;
   border: 1px solid var(--border-subtle);
 }
 
-/* Each video */
 .remote-video {
   position: absolute;
   top: 0;
@@ -222,7 +220,6 @@ body {
   object-fit: cover;
 }
 
-/* Label on tile (You / name) */
 .video-label {
   position: absolute;
   bottom: 6px;
@@ -269,7 +266,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 0; /* Important for flex children */
+  min-height: 0;
 }
 
 .sidebar-section {
@@ -279,7 +276,7 @@ body {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  min-height: 0; /* Important for flex children */
+  min-height: 0;
 }
 
 .sidebar-title {
@@ -295,7 +292,7 @@ body {
   flex: 1;
 }
 
-/* CHAT STYLES (ADDED) ---------------------------------------------------- */
+/* CHAT STYLES ---------------------------------------------------- */
 
 .chat-section {
   flex: 1;
@@ -351,7 +348,7 @@ body {
 
 .ai-section {
   flex: 1;
-  min-height: 250px;
+  min-height: 350px;
 }
 
 .ai-section .ai-form {
@@ -363,9 +360,9 @@ body {
 .ai-result {
   color: var(--text-main);
   font-size: 0.95rem;
-  min-height: 38px;
-  line-height: 1.3;
-  padding: 8px;
+  min-height: 80px;
+  line-height: 1.4;
+  padding: 10px;
   background: rgba(5, 5, 15, 0.6);
   border-radius: 8px;
   margin-top: 8px;
@@ -378,8 +375,15 @@ body {
   border-radius: 12px;
   margin-top: 10px;
   border: 1px solid var(--border-subtle);
-  object-fit: cover; /* Changed from contain to cover */
-  background: #000; /* Background for transparent images */
+  object-fit: contain;
+  background: #000;
+}
+
+.shared-by {
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
 }
 
 /* RESPONSIVE ------------------------------------------------------------- */
@@ -454,4 +458,13 @@ body {
     width: 100%;
     max-width: 200px;
   }
+}
+
+.shared-by {
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 4px;
 }

@@ -82,6 +82,9 @@ async function initRoomPage() {
 
   // UI controls
   setupControls();
+  
+  // Initialize AI collaboration
+  setupAICollaboration();
 }
 
 // ===============================
@@ -209,10 +212,25 @@ function registerSocketEvents() {
     removePeer(socketId);
   });
 
-
   // Chat message
   socket.on("chat-message", ({ message, name }) => {
     addChatMessage(name, message);
+  });
+
+  // AI ANALYSIS BROADCAST - NEW EVENT
+  socket.on("ai-analysis-update", ({ imageData, prediction, confidence, userName }) => {
+    console.log("📥 Received AI analysis from:", userName);
+    updateAIDisplay(imageData, prediction, confidence, userName);
+    
+    // Show notification in chat
+    const chatMessages = document.getElementById("chatMessages");
+    if (chatMessages) {
+      const notification = document.createElement("div");
+      notification.className = "chat-msg";
+      notification.innerHTML = `🔬 <strong>${escapeHtml(userName)}</strong> shared a medical image analysis: <strong>${escapeHtml(prediction)}</strong> (${(confidence * 100).toFixed(1)}%)`;
+      chatMessages.appendChild(notification);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
   });
 
   // (Optional) participants list update
@@ -220,6 +238,103 @@ function registerSocketEvents() {
     // you can implement participant list rendering here later
     // console.log("room-users:", usersObj);
   });
+}
+
+// ===============================
+//   COLLABORATIVE AI ANALYSIS - MODIFIED
+// ===============================
+function setupAICollaboration() {
+  const aiForm = document.getElementById("aiForm");
+  const aiFile = document.getElementById("aiFile");
+  const aiResult = document.getElementById("aiResult");
+  const aiImagePreview = document.getElementById("aiImagePreview");
+
+  if (!aiForm || !aiFile || !aiResult || !aiImagePreview) return;
+
+  aiForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const file = aiFile.files[0];
+    if (!file) {
+      aiResult.textContent = "Please choose an image file.";
+      return;
+    }
+
+    // Convert to data URL for sharing with other participants
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const imageData = e.target.result; // data:image/png;base64,...
+      
+      // Show local preview immediately
+      aiImagePreview.src = imageData;
+      aiImagePreview.style.display = "block";
+      aiResult.textContent = "Analyzing...";
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
+          method: "POST",
+          body: formData,
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          }
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Server error (${res.status}): ${text}`);
+        }
+
+        const data = await res.json();
+
+        if (!data || !data.prediction) {
+          aiResult.textContent = "Invalid response from AI server.";
+          return;
+        }
+
+        aiResult.innerHTML = `
+          <div class="shared-by">Shared by: You</div>
+          <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
+          <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
+          <div style="margin-top: 8px; font-size: 0.8em; color: var(--text-muted);">
+            🔄 Shared with all participants
+          </div>
+        `;
+
+        // ✅ BROADCAST TO EVERYONE IN THE ROOM
+        socket.emit("ai-analysis-result", {
+          roomId: roomId,
+          imageData: imageData,
+          prediction: data.prediction,
+          confidence: data.confidence,
+          userName: username
+        });
+
+        console.log("📤 Analysis shared with room");
+
+      } catch (err) {
+        console.error("AI upload failed:", err);
+        aiResult.textContent = "Error while processing the image.";
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateAIDisplay(imageData, prediction, confidence, userName) {
+  const aiResult = document.getElementById("aiResult");
+  const aiImagePreview = document.getElementById("aiImagePreview");
+
+  aiImagePreview.src = imageData;
+  aiImagePreview.style.display = "block";
+  
+  aiResult.innerHTML = `
+    <div class="shared-by">Shared by: ${escapeHtml(userName)}</div>
+    <div><strong>Prediction:</strong> ${escapeHtml(String(prediction))}</div>
+    <div><strong>Confidence:</strong> ${Number(confidence).toFixed(4)}</div>
+  `;
 }
 
 // ===============================
@@ -234,7 +349,6 @@ function createPeerConnection(remoteId, isInitiator) {
   const pc = new RTCPeerConnection(iceServers);
   peers[remoteId] = pc;
   peers[remoteId].username = remoteId;
-
 
   // Add local tracks (if localStream is available)
   if (localStream) {
@@ -286,7 +400,6 @@ function createPeerConnection(remoteId, isInitiator) {
       if (videoEl) videoEl.srcObject = event.streams[0];
     }
   };
-
 
   pc.onconnectionstatechange = () => {
     console.log("Connection state with", remoteId, ":", pc.connectionState);
@@ -426,70 +539,3 @@ function setupControls() {
     });
   }
 }
-// ===============================
-//   AI ANALYSIS UPLOAD (FLASK) - FIXED
-// ===============================
-
-(function attachAIHandler() {
-  const aiForm = document.getElementById("aiForm");
-  const aiFile = document.getElementById("aiFile");
-  const aiResult = document.getElementById("aiResult");
-  const aiImagePreview = document.getElementById("aiImagePreview");
-
-  if (!aiForm || !aiFile || !aiResult || !aiImagePreview) return;
-
-  aiForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const file = aiFile.files[0];
-    if (!file) {
-      aiResult.textContent = "Please choose an image file.";
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    aiResult.textContent = "Analyzing...";
-    aiImagePreview.style.display = "none";
-    aiImagePreview.src = "";
-
-    try {
-      const res = await fetch('https://santalaceous-catatonically-emile.ngrok-free.dev/predict', {
-        method: "POST",
-        body: formData,
-        headers: {
-          'ngrok-skip-browser-warning': 'true'
-        }
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Server error (${res.status}): ${text}`);
-      }
-
-      const data = await res.json();
-
-      if (!data || !data.prediction) {
-        aiResult.textContent = "Invalid response from AI server.";
-        return;
-      }
-
-      aiResult.innerHTML = `
-        <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
-        <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
-      `;
-
-     
-      // FIXED: Load image with CORS workaround
-      // SIMPLE DIRECT APPROACH - PRODUCTION READY
-      aiImagePreview.crossOrigin = "anonymous";
-      aiImagePreview.src = "https://santalaceous-catatonically-emile.ngrok-free.dev/uploaded_image?" + new Date().getTime();
-      aiImagePreview.style.display = "block";
-
-    } catch (err) {
-      console.error("AI upload failed:", err);
-      aiResult.textContent = "Error while processing the image.";
-    }
-  }); 
-})();

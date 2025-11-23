@@ -32,14 +32,6 @@ app.get("/", (req, res) => {
 //   IN-MEMORY USER STORAGE
 // ==========================
 let rooms = {}; 
-/*
-rooms = {
-    "1234": {
-        "SocketID1": "Alice",
-        "SocketID2": "Siddu"
-    }
-}
-*/
 
 // ==========================
 //     SOCKET.IO HANDLERS
@@ -74,6 +66,21 @@ io.on("connection", (socket) => {
 
     // Update participants list
     io.to(roomId).emit("room-users", rooms[roomId]);
+  });
+
+  // ==========================
+  //   AI ANALYSIS BROADCAST
+  // ==========================
+  socket.on("ai-analysis-result", ({ roomId, imageData, prediction, confidence, userName }) => {
+    console.log(`📊 AI analysis broadcast in room ${roomId} by ${userName}`);
+    
+    // Broadcast to everyone in the room including sender
+    io.to(roomId).emit("ai-analysis-update", {
+      imageData,
+      prediction,
+      confidence,
+      userName
+    });
   });
 
   // --------------------------

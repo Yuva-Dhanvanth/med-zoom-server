@@ -1,17 +1,17 @@
-<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mini Zoom - Home</title>
+  <title>MediZoom - Medical Video Consultations</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🩺</text></svg>">
 </head>
 <body data-page="home">
   <div class="app-container center">
     <div class="card">
-      <h1 class="app-title">Mini Zoom</h1>
+      <h1 class="app-title">🩺 MediZoom</h1>
       <p class="app-subtitle">
-        Simple WebRTC video meetings with chat & screen share.
+        Secure medical video consultations with AI-powered image analysis.
       </p>
 
       <!-- Room join form -->
@@ -32,21 +32,20 @@
           id="nameInput"
           type="text"
           class="input"
-          placeholder="e.g. Alice"
+          placeholder="e.g. Dr. Smith"
           autocomplete="off"
         />
 
-        <!-- Error message area (no alerts) -->
+        <!-- Error message area -->
         <div id="homeError" class="error-text"></div>
 
         <button type="submit" class="btn primary-btn">
-          Join Room
+          Join Consultation
         </button>
       </form>
 
       <p class="hint">
-        💡 Tip: Ask a friend to open this page on another device/network and
-        enter the same room number.
+        💡 Share the room number with colleagues to start a medical consultation.
       </p>
     </div>
   </div>

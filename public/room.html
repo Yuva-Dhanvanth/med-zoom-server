@@ -1,10 +1,10 @@
-<!-- public/room.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mini Zoom - Meeting</title>
+  <title>MediZoom - Consultation</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🩺</text></svg>">
 </head>
 <body data-page="room">
   <div class="app-container meeting-layout">
@@ -13,7 +13,7 @@
       <!-- Top bar: room info -->
       <div class="top-bar">
         <div>
-          <span class="badge">Room</span>
+          <span class="badge">Consultation Room</span>
           <span id="roomLabel" class="room-label"></span>
         </div>
         <div class="top-bar-right">
@@ -65,9 +65,10 @@
 
       <!-- AI Analysis -->
       <div class="sidebar-section ai-section">
-        <h2 class="sidebar-title">AI Analysis</h2>
+        <h2 class="sidebar-title">🩺 Medical Image Analysis</h2>
 
         <form id="aiForm" class="ai-form" enctype="multipart/form-data">
+          <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
           <input
             id="aiFile"
             type="file"
@@ -80,11 +81,11 @@
           </button>
         </form>
 
-        <div id="aiResult" class="ai-result" style="margin-top:12px;"></div>
+        <div id="aiResult" class="ai-result"></div>
 
         <img id="aiImagePreview" 
              src=""
-             alt="Uploaded preview"
+             alt="Medical image preview"
              class="ai-image-preview" />
       </div>
 
