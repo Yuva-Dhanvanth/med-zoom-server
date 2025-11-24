@@ -1,9 +1,9 @@
 // ===============================
-//   MINI ZOOM - CLIENT LOGIC
+//   MEDIZOOM - CLIENT LOGIC
 // ===============================
 
 // CONFIGURATION - CHANGE THIS URL WHEN NGROK RESTARTS
-const AI_SERVER_URL = "https://santalaceous-catatonically-emile.ngrok-free.dev";
+const AI_SERVER_URL = 'https://santalaceous-catatonically-emile.ngrok-free.dev';
 
 let socket = null;
 let localStream = null;
@@ -12,6 +12,8 @@ let remoteVideoElements = {};
 let roomId = null;
 let username = null;
 let isPopupInitiator = false;
+let isHost = false;
+let participants = {};
 
 // ICE servers
 const iceServers = {
@@ -100,7 +102,7 @@ async function initLocalMedia() {
     video.className = "remote-video";
 
     const label = document.createElement("div");
-    label.textContent = "You";
+    label.textContent = `${username} (You) ${isHost ? '👑' : ''}`;
     label.className = "video-label";
 
     wrapper.appendChild(video);
@@ -124,16 +126,68 @@ async function initLocalMedia() {
 //   SOCKET.IO EVENTS
 // ===============================
 function registerSocketEvents() {
+  socket.on("room-state", ({ participants: roomParticipants, isHost: hostStatus, hostId }) => {
+    participants = roomParticipants;
+    isHost = hostStatus;
+    updateParticipantsList(participants);
+    updateHostUI();
+  });
+
   socket.on("existing-users", (userIds) => {
     console.log("Existing users:", userIds);
     userIds.forEach((id) => createPeerConnection(id, true));
   });
 
-  socket.on("user-joined", ({ socketId, name }) => {
+  socket.on("user-joined", ({ socketId, name, isHost: userIsHost }) => {
     console.log("User joined:", socketId, name);
     createPeerConnection(socketId, false);
   });
 
+  socket.on("participants-updated", (updatedParticipants) => {
+    participants = updatedParticipants;
+    updateParticipantsList(participants);
+    updateVideoLabels();
+  });
+
+  socket.on("you-are-now-host", () => {
+    isHost = true;
+    updateHostUI();
+    showNotification("You are now the host");
+  });
+
+  socket.on("host-changed", ({ newHostId }) => {
+    if (newHostId === socket.id) {
+      isHost = true;
+      updateHostUI();
+      showNotification("You are now the host");
+    }
+    updateParticipantsList(participants);
+  });
+
+  socket.on("force-mute", () => {
+    const audioTrack = localStream?.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = false;
+      document.getElementById("btnToggleMic").textContent = "🔇 Unmute";
+      showNotification("Host muted your microphone");
+    }
+  });
+
+  socket.on("force-unmute", () => {
+    const audioTrack = localStream?.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = true;
+      document.getElementById("btnToggleMic").textContent = "🎙️ Mute";
+      showNotification("Host unmuted your microphone");
+    }
+  });
+
+  socket.on("removed-from-room", () => {
+    alert("You have been removed from the meeting by the host");
+    window.location.href = "index.html";
+  });
+
+  // WebRTC Events
   socket.on("offer", async ({ offer, senderId }) => {
     console.log("Received offer from:", senderId);
     if (!peers[senderId]) createPeerConnection(senderId, false);
@@ -173,14 +227,11 @@ function registerSocketEvents() {
   socket.on("user-left", (socketId) => {
     console.log("User left:", socketId);
     removePeer(socketId);
+    updateParticipantsList(participants);
   });
 
   socket.on("chat-message", ({ message, name }) => {
     addChatMessage(name, message);
-  });
-
-  socket.on("room-users", (users) => {
-    updateParticipantsList(users);
   });
 
   // AI ANALYSIS BROADCAST
@@ -219,7 +270,109 @@ function registerSocketEvents() {
 }
 
 // ===============================
-//   POPUP MANAGEMENT - FIXED
+//   HOST CONTROLS
+// ===============================
+function updateHostUI() {
+  const hostBadge = document.getElementById("hostBadge");
+  const participantsList = document.getElementById("participantsList");
+  
+  if (hostBadge) {
+    hostBadge.style.display = isHost ? "inline-block" : "none";
+  }
+  
+  if (participantsList) {
+    participantsList.innerHTML = generateParticipantsListHTML();
+  }
+}
+
+function generateParticipantsListHTML() {
+  let html = '';
+  
+  for (const [socketId, participant] of Object.entries(participants)) {
+    const isYou = socketId === socket.id;
+    const isParticipantHost = participant.isHost;
+    
+    html += `
+      <div class="participant-item ${isYou ? 'you' : ''}">
+        <div class="participant-avatar">${participant.name.charAt(0).toUpperCase()}</div>
+        <div class="participant-info">
+          <div class="participant-name">
+            ${participant.name} 
+            ${isYou ? '<span class="you-badge">You</span>' : ''}
+            ${isParticipantHost ? '<span class="host-badge">👑 Host</span>' : ''}
+          </div>
+          <div class="participant-status">
+            ${participant.isMuted ? '🔇 Muted' : '🎙️ Unmuted'} • 
+            ${participant.isVideoOn ? '📹 Video On' : '📹 Video Off'}
+          </div>
+        </div>
+        ${isHost && !isYou ? `
+          <div class="participant-actions">
+            <button class="btn-small" onclick="toggleMuteUser('${socketId}', ${!participant.isMuted})">
+              ${participant.isMuted ? '🔊 Unmute' : '🔇 Mute'}
+            </button>
+            <button class="btn-small" onclick="makeHost('${socketId}')">
+              👑 Make Host
+            </button>
+            <button class="btn-small btn-danger" onclick="removeUser('${socketId}')">
+              🚪 Remove
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+  
+  return html;
+}
+
+function toggleMuteUser(userId, mute) {
+  if (mute) {
+    socket.emit("mute-user", { roomId, targetUserId: userId });
+  } else {
+    socket.emit("unmute-user", { roomId, targetUserId: userId });
+  }
+}
+
+function makeHost(userId) {
+  if (confirm(`Make ${participants[userId]?.name} the new host?`)) {
+    socket.emit("change-host", { roomId, newHostId: userId });
+  }
+}
+
+function removeUser(userId) {
+  if (confirm(`Remove ${participants[userId]?.name} from the meeting?`)) {
+    socket.emit("remove-user", { roomId, targetUserId: userId });
+  }
+}
+
+function showNotification(message) {
+  // Create notification element
+  const notification = document.createElement("div");
+  notification.className = "notification";
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--accent);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    z-index: 10000;
+    box-shadow: var(--shadow-soft);
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Remove after 3 seconds
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
+
+// ===============================
+//   POPUP MANAGEMENT
 // ===============================
 function setupPopups() {
   const btnParticipants = document.getElementById("btnParticipants");
@@ -230,7 +383,7 @@ function setupPopups() {
   const aiPopup = document.getElementById("aiPopup");
   const aiForm = document.getElementById("aiForm");
 
-  // Participants popup (local only)
+  // Participants popup
   btnParticipants.addEventListener("click", () => {
     participantsPopup.style.display = "flex";
   });
@@ -344,21 +497,30 @@ function closeAIPopupAsViewer() {
   isPopupInitiator = false;
 }
 
-function updateParticipantsList(users) {
+function updateParticipantsList(updatedParticipants) {
+  participants = updatedParticipants;
   const participantsList = document.getElementById("participantsList");
   if (!participantsList) return;
 
-  let html = '';
-  for (const [socketId, name] of Object.entries(users)) {
-    const isYou = socketId === socket.id;
-    html += `
-      <div class="participant-item">
-        <div class="participant-avatar">${name.charAt(0).toUpperCase()}</div>
-        <div class="participant-name">${name} ${isYou ? '(You)' : ''}</div>
-      </div>
-    `;
+  participantsList.innerHTML = generateParticipantsListHTML();
+}
+
+function updateVideoLabels() {
+  // Update local video label
+  const localVideo = document.querySelector('.local-tile .video-label');
+  if (localVideo) {
+    localVideo.textContent = `${username} (You) ${isHost ? '👑' : ''}`;
   }
-  participantsList.innerHTML = html;
+
+  // Update remote video labels
+  for (const [socketId, participant] of Object.entries(participants)) {
+    if (socketId !== socket.id && remoteVideoElements[socketId]) {
+      const remoteLabel = remoteVideoElements[socketId].querySelector('.video-label');
+      if (remoteLabel) {
+        remoteLabel.textContent = `${participant.name} ${participant.isHost ? '👑' : ''}`;
+      }
+    }
+  }
 }
 
 // ===============================
@@ -498,8 +660,9 @@ function createPeerConnection(remoteId, isInitiator) {
       video.className = "remote-video";
       video.srcObject = event.streams[0];
 
+      const participant = participants[remoteId];
       const label = document.createElement("div");
-      label.textContent = "Remote User";
+      label.textContent = participant ? `${participant.name} ${participant.isHost ? '👑' : ''}` : "Remote User";
       label.className = "video-label";
 
       wrapper.appendChild(video);
@@ -593,6 +756,11 @@ function setupControls() {
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         btnMic.textContent = audioTrack.enabled ? "🎙️ Mute" : "🔇 Unmute";
+        
+        // Update participant state
+        if (participants[socket.id]) {
+          participants[socket.id].isMuted = !audioTrack.enabled;
+        }
       }
     });
   }
@@ -603,6 +771,11 @@ function setupControls() {
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         btnCam.textContent = videoTrack.enabled ? "📷 Camera Off" : "📷 Camera On";
+        
+        // Update participant state
+        if (participants[socket.id]) {
+          participants[socket.id].isVideoOn = videoTrack.enabled;
+        }
       }
     });
   }

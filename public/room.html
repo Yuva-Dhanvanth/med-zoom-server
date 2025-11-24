@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>MediZoom - Consultation</title>
+  <title>MediZoom - Medical Consultation</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🩺</text></svg>">
 </head>
@@ -12,9 +12,10 @@
     <div class="video-section">
       <!-- Top bar: room info -->
       <div class="top-bar">
-        <div>
-          <span class="badge">Consultation Room</span>
+        <div class="room-info">
+          <span class="badge">Medical Consultation</span>
           <span id="roomLabel" class="room-label"></span>
+          <span id="hostBadge" class="host-badge" style="display: none;">👑 Host</span>
         </div>
         <div class="top-bar-right">
           <button id="btnParticipants" class="btn participants-btn">
@@ -23,7 +24,9 @@
           <button id="btnAskAI" class="btn ai-btn">
             🩺 Ask AI
           </button>
-          <span id="usernameLabel" class="username-label"></span>
+          <div class="user-info">
+            <span id="usernameLabel" class="username-label"></span>
+          </div>
         </div>
       </div>
 
@@ -37,14 +40,14 @@
         <button id="btnToggleMic" class="btn control-btn">
           🎙️ Mute
         </button>
-        <button id="btnLeave" class="btn control-btn">
-          🚪 Leave
-        </button>
         <button id="btnToggleCamera" class="btn control-btn">
           📷 Camera Off
         </button>
         <button id="btnShareScreen" class="btn control-btn">
           🖥️ Share Screen
+        </button>
+        <button id="btnLeave" class="btn control-btn">
+          🚪 Leave
         </button>
       </div>
     </div>
@@ -70,35 +73,33 @@
   </div>
 
   <!-- AI Analysis Popup -->
-    <div id="aiPopup" class="popup-overlay">
-      <div class="popup-content">
-        <div class="popup-header">
-          <h2>🩺 Medical Image Analysis</h2>
-          <button id="closeAIPopup" class="btn close-btn">×</button>
-        </div>
-        
-        <div class="popup-body">
-          <!-- Upload Form (only visible to initiator) -->
-          <form id="aiForm" class="ai-form">
-            <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
-            <input
-              id="aiFile"
-              type="file"
-              name="file"
-              accept="image/*"
-              class="input"
-            />
-            <button type="submit" class="btn primary-btn">
-              Upload & Analyze
-            </button>
-          </form>
+  <div id="aiPopup" class="popup-overlay">
+    <div class="popup-content">
+      <div class="popup-header">
+        <h2>🩺 Medical Image Analysis</h2>
+        <button id="closeAIPopup" class="btn close-btn">×</button>
+      </div>
+      
+      <div class="popup-body">
+        <form id="aiForm" class="ai-form">
+          <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
+          <input
+            id="aiFile"
+            type="file"
+            name="file"
+            accept="image/*"
+            class="input"
+          />
+          <button type="submit" class="btn primary-btn">
+            Upload & Analyze
+          </button>
+        </form>
 
-          <!-- Results Area (visible to everyone) -->
-          <div id="aiResult" class="ai-result"></div>
-          <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
-        </div>
+        <div id="aiResult" class="ai-result"></div>
+        <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
       </div>
     </div>
+  </div>
 
   <!-- Participants Popup -->
   <div id="participantsPopup" class="popup-overlay">

@@ -47,25 +47,100 @@ io.on("connection", (socket) => {
     socket.join(roomId);
 
     // Create room if not exist
-    if (!rooms[roomId]) rooms[roomId] = {};
+    if (!rooms[roomId]) {
+      rooms[roomId] = {
+        participants: {},
+        host: socket.id // First user becomes host
+      };
+    }
 
     // Save user
-    rooms[roomId][socket.id] = name || "Guest";
+    rooms[roomId].participants[socket.id] = {
+      name: name || "Guest",
+      isMuted: false,
+      isVideoOn: true,
+      isHost: socket.id === rooms[roomId].host
+    };
 
-    console.log(`User ${socket.id} (${rooms[roomId][socket.id]}) joined room ${roomId}`);
+    console.log(`User ${socket.id} (${name}) joined room ${roomId} - Host: ${rooms[roomId].host === socket.id}`);
 
-    // Send existing users to new user
-    const existingUsers = Object.keys(rooms[roomId]).filter(id => id !== socket.id);
+    // Send room state to new user
+    socket.emit("room-state", {
+      participants: rooms[roomId].participants,
+      isHost: rooms[roomId].host === socket.id,
+      hostId: rooms[roomId].host
+    });
+
+    // Send existing users to new user (for WebRTC)
+    const existingUsers = Object.keys(rooms[roomId].participants).filter(id => id !== socket.id);
     socket.emit("existing-users", existingUsers);
 
     // Notify others in the room
     socket.to(roomId).emit("user-joined", {
       socketId: socket.id,
-      name: rooms[roomId][socket.id]
+      name: name,
+      isHost: false
     });
 
-    // Update participants list
-    io.to(roomId).emit("room-users", rooms[roomId]);
+    // Update participants list for everyone
+    io.to(roomId).emit("participants-updated", rooms[roomId].participants);
+  });
+
+  // ==========================
+  //   HOST CONTROLS
+  // ==========================
+  socket.on("mute-user", ({ roomId, targetUserId }) => {
+    const room = rooms[roomId];
+    if (room && room.host === socket.id && room.participants[targetUserId]) {
+      room.participants[targetUserId].isMuted = true;
+      io.to(targetUserId).emit("force-mute");
+      io.to(roomId).emit("participants-updated", room.participants);
+    }
+  });
+
+  socket.on("unmute-user", ({ roomId, targetUserId }) => {
+    const room = rooms[roomId];
+    if (room && room.host === socket.id && room.participants[targetUserId]) {
+      room.participants[targetUserId].isMuted = false;
+      io.to(targetUserId).emit("force-unmute");
+      io.to(roomId).emit("participants-updated", room.participants);
+    }
+  });
+
+  socket.on("change-host", ({ roomId, newHostId }) => {
+    const room = rooms[roomId];
+    if (room && room.host === socket.id) {
+      room.host = newHostId;
+      
+      // Update host status for all participants
+      Object.keys(room.participants).forEach(id => {
+        room.participants[id].isHost = (id === newHostId);
+      });
+
+      io.to(roomId).emit("host-changed", { newHostId });
+      io.to(roomId).emit("participants-updated", room.participants);
+    }
+  });
+
+  socket.on("remove-user", ({ roomId, targetUserId }) => {
+    const room = rooms[roomId];
+    if (room && room.host === socket.id) {
+      // Notify user to leave
+      io.to(targetUserId).emit("removed-from-room");
+      
+      // Remove from room
+      delete room.participants[targetUserId];
+      
+      // If host removed themselves, assign new host
+      if (targetUserId === room.host && Object.keys(room.participants).length > 0) {
+        room.host = Object.keys(room.participants)[0];
+        room.participants[room.host].isHost = true;
+        io.to(room.host).emit("you-are-now-host");
+      }
+
+      io.to(roomId).emit("participants-updated", room.participants);
+      io.to(roomId).emit("user-left", targetUserId);
+    }
   });
 
   // ==========================
@@ -73,13 +148,11 @@ io.on("connection", (socket) => {
   // ==========================
   socket.on("open-ai-popup", ({ roomId, userName }) => {
     console.log(`🩺 ${userName} opened AI popup in room ${roomId}`);
-    // Broadcast to everyone except sender
     socket.to(roomId).emit("ai-popup-opened", { userName });
   });
 
   socket.on("close-ai-popup", ({ roomId, userName }) => {
     console.log(`❌ ${userName} closed AI popup in room ${roomId}`);
-    // Broadcast to everyone except sender
     socket.to(roomId).emit("ai-popup-closed", { userName });
   });
 
@@ -88,8 +161,6 @@ io.on("connection", (socket) => {
   // ==========================
   socket.on("ai-analysis-result", ({ roomId, imageData, prediction, confidence, userName }) => {
     console.log(`📊 AI analysis broadcast in room ${roomId} by ${userName}`);
-    
-    // Broadcast to everyone in the room including sender
     io.to(roomId).emit("ai-analysis-update", {
       imageData,
       prediction,
@@ -118,7 +189,7 @@ io.on("connection", (socket) => {
   });
 
   // --------------------------
-  // OFFER SENT TO A USER
+  // WEBRTC EVENTS
   // --------------------------
   socket.on("offer", ({ offer, targetId }) => {
     io.to(targetId).emit("offer", {
@@ -127,9 +198,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // --------------------------
-  // ANSWER SENT BACK
-  // --------------------------
   socket.on("answer", ({ answer, targetId }) => {
     io.to(targetId).emit("answer", {
       answer,
@@ -137,9 +205,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // --------------------------
-  // ICE CANDIDATES
-  // --------------------------
   socket.on("ice-candidate", ({ candidate, targetId }) => {
     io.to(targetId).emit("ice-candidate", {
       candidate,
@@ -166,20 +231,26 @@ io.on("connection", (socket) => {
 
     // Find which room user was in
     for (const roomId in rooms) {
-      if (rooms[roomId][socket.id]) {
-        const name = rooms[roomId][socket.id];
+      if (rooms[roomId].participants[socket.id]) {
+        const room = rooms[roomId];
+        const userName = room.participants[socket.id].name;
 
-        delete rooms[roomId][socket.id];
+        delete room.participants[socket.id];
 
-        // Notify others
-        socket.to(roomId).emit("user-left", socket.id);
-
-        // Update participants list
-        io.to(roomId).emit("room-users", rooms[roomId]);
+        // If host left, assign new host
+        if (socket.id === room.host && Object.keys(room.participants).length > 0) {
+          room.host = Object.keys(room.participants)[0];
+          room.participants[room.host].isHost = true;
+          io.to(room.host).emit("you-are-now-host");
+        }
 
         // Remove room if empty
-        if (Object.keys(rooms[roomId]).length === 0) {
+        if (Object.keys(room.participants).length === 0) {
           delete rooms[roomId];
+        } else {
+          // Notify others
+          socket.to(roomId).emit("user-left", socket.id);
+          io.to(roomId).emit("participants-updated", room.participants);
         }
 
         break;
