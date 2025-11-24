@@ -487,26 +487,9 @@ body {
   justify-content: center;
 }
 
-.popup-content {
-  background: var(--card-bg);
-  border-radius: var(--radius-xl);
-  padding: 0;
-  width: 90%;
-  max-width: 500px;
-  max-height: 80vh;
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-soft);
-  display: flex;
-  flex-direction: column;
-}
 
-.popup-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-subtle);
-}
+
+
 
 .popup-header h2 {
   margin: 0;
@@ -652,19 +635,7 @@ body {
 /*  POPUP STYLES                                                               */
 /* ============================================================================ */
 
-.popup-overlay {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(5px);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-}
+
 
 .popup-content {
   background: var(--card-bg);
@@ -719,51 +690,14 @@ body {
   flex: 1;
 }
 
-/* AI Popup Specific */
-.ai-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
 
-.ai-result {
-  color: var(--text-main);
-  font-size: 0.95rem;
-  min-height: 60px;
-  line-height: 1.4;
-  padding: 12px;
-  background: rgba(5, 5, 15, 0.6);
-  border-radius: 8px;
-  margin-top: 12px;
-}
 
-.ai-image-preview {
-  display: none;
-  width: 100%;
-  max-height: 300px;
-  border-radius: 12px;
-  margin-top: 12px;
-  border: 1px solid var(--border-subtle);
-  object-fit: contain;
-  background: #000;
-}
 
-.shared-by {
-  color: var(--accent);
-  font-weight: 600;
-  margin-bottom: 8px;
-  font-size: 0.9rem;
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 4px;
-}
+
+
 
 /* Participants Popup Specific */
-.participants-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+
 
 .participant-item {
   padding: 12px;
@@ -907,18 +841,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Enhanced Participants List */
-.participant-item {
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
-}
+
 
 .participant-item.you {
   background: rgba(76, 175, 80, 0.1);
@@ -929,31 +852,10 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.participant-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  color: #111;
-  font-size: 0.9rem;
-}
+
 
 .participant-info {
   flex: 1;
-}
-
-.participant-name {
-  color: var(--text-main);
-  font-weight: 600;
-  font-size: 0.95rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 
 .participant-status {
