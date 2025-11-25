@@ -3,7 +3,7 @@
 // ===============================
 
 // CONFIGURATION - CHANGE THIS URL WHEN NGROK RESTARTS
-const AI_SERVER_URL = 'https://santalaceous-catatonically-emile.ngrok-free.dev';
+const AI_SERVER_URL =  "https://santalaceous-catatonically-emile.ngrok-free.dev";
 
 let socket = null;
 let localStream = null;
