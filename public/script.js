@@ -3,7 +3,7 @@
 // ===============================
 
 // CONFIGURATION - CHANGE THIS URL WHEN NGROK RESTARTS
-const AI_SERVER_URL =  "https://santalaceous-catatonically-emile.ngrok-free.dev" ;
+const AI_SERVER_URL = "https://santalaceous-catatonically-emile.ngrok-free.dev";
 
 let socket = null;
 let localStream = null;
@@ -11,7 +11,6 @@ let peers = {};
 let remoteVideoElements = {};
 let roomId = null;
 let username = null;
-let isPopupInitiator = false;
 let isHost = false;
 let participants = {};
 
@@ -76,8 +75,8 @@ async function initRoomPage() {
   await initLocalMedia();
   socket.emit("join-room", { roomId, name: username });
   setupControls();
-  setupPopups();
   setupAICollaboration();
+  setupChat();
 }
 
 // ===============================
@@ -156,31 +155,21 @@ function registerSocketEvents() {
   });
 
   // Drawing events
-socket.on("drawing-action", (data) => {
-  if (annotationTool && data.userId !== socket.id) {
-    annotationTool.handleRemoteDrawing(data);
-    
-    // Update user colors if new user
-    if (!userColors[data.userId]) {
-      userColors[data.userId] = data.data.color || '#4CAF50';
-      if (annotationTool.updateUserIndicators) {
-        annotationTool.updateUserIndicators();
-      }
-    }
-  }
-});
+  socket.on("drawing-action", (data) => {
+    // Handle drawing if needed
+  });
 
   // AI Report Updates
-socket.on("ai-report-update", ({ report, userName }) => {
-  if (userName !== username) { // Don't show if it's our own report
-    const reportResult = document.getElementById("reportResult");
-    reportResult.innerHTML = `
-      <div class="shared-by">AI Medical Report (by ${userName})</div>
-      <div>${report}</div>
-    `;
-    reportResult.className = "ai-report-result";
-  }
-});
+  socket.on("ai-report-update", ({ report, userName }) => {
+    if (userName !== username) {
+      const reportResult = document.getElementById("reportResult");
+      reportResult.innerHTML = `
+        <div class="shared-by">AI Medical Report (by ${userName})</div>
+        <div>${report}</div>
+      `;
+      reportResult.className = "ai-report-result";
+    }
+  });
 
   socket.on("host-changed", ({ newHostId }) => {
     if (newHostId === socket.id) {
@@ -269,31 +258,6 @@ socket.on("ai-report-update", ({ report, userName }) => {
     // Show notification in chat
     addChatMessage("System", `${userName} shared a medical image analysis: ${prediction} (${(confidence * 100).toFixed(1)}%)`);
   });
-
-  // SHARED POPUP EVENTS
-  socket.on("ai-popup-opened", ({ userName }) => {
-    console.log(`📢 ${userName} opened AI popup`);
-    openAIPopupAsViewer(userName);
-  });
-
-  socket.on("ai-popup-closed", ({ userName }) => {
-    console.log(`📢 ${userName} closed AI popup`);
-    closeAIPopupAsViewer();
-  });
-
-  // AI ANALYSIS STATUS
-  socket.on("ai-analysis-status", ({ userName, status, message }) => {
-    const aiResult = document.getElementById("aiResult");
-    if (aiResult && status === "analyzing") {
-      aiResult.innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); padding: 20px;">
-          <div style="font-size: 2rem; margin-bottom: 10px;">🔬</div>
-          <div><strong>${userName}</strong> is analyzing a medical image</div>
-          <div style="font-size: 0.9rem; margin-top: 8px;">${message}</div>
-        </div>
-      `;
-    }
-  });
 }
 
 // ===============================
@@ -374,7 +338,6 @@ function removeUser(userId) {
 }
 
 function showNotification(message) {
-  // Create notification element
   const notification = document.createElement("div");
   notification.className = "notification";
   notification.textContent = message;
@@ -392,171 +355,18 @@ function showNotification(message) {
   
   document.body.appendChild(notification);
   
-  // Remove after 3 seconds
   setTimeout(() => {
     notification.remove();
   }, 3000);
 }
 
 // ===============================
-//   POPUP MANAGEMENT
+//   AI COLLABORATION
 // ===============================
-function setupPopups() {
-  const btnParticipants = document.getElementById("btnParticipants");
-  const btnAskAI = document.getElementById("btnAskAI");
-  const closeParticipantsPopup = document.getElementById("closeParticipantsPopup");
-  const closeAIPopup = document.getElementById("closeAIPopup");
-  const participantsPopup = document.getElementById("participantsPopup");
-  const aiPopup = document.getElementById("aiPopup");
-  const aiForm = document.getElementById("aiForm");
-
-  // Participants popup
-  btnParticipants.addEventListener("click", () => {
-    participantsPopup.style.display = "flex";
-  });
-
-  closeParticipantsPopup.addEventListener("click", () => {
-    participantsPopup.style.display = "none";
-  });
-
-  // AI popup (shared with everyone)
-  btnAskAI.addEventListener("click", () => {
-    openAIPopupAsInitiator();
-  });
-
-  closeAIPopup.addEventListener("click", () => {
-    if (isPopupInitiator) {
-      closeAIPopupAsInitiator();
-    } else {
-      closeAIPopupAsViewer();
-    }
-  });
-
-  // Close popups when clicking outside
-  [participantsPopup, aiPopup].forEach(popup => {
-    popup.addEventListener("click", (e) => {
-      if (e.target === popup) {
-        if (popup === aiPopup) {
-          if (isPopupInitiator) {
-            closeAIPopupAsInitiator();
-          } else {
-            closeAIPopupAsViewer();
-          }
-        } else {
-          popup.style.display = "none";
-        }
-      }
-    });
-  });
-}
-
-function openAIPopupAsInitiator() {
-  const aiPopup = document.getElementById("aiPopup");
-  const aiForm = document.getElementById("aiForm");
-  
-  isPopupInitiator = true;
-  aiPopup.style.display = "flex";
-  
-  // Show upload form for initiator
-  if (aiForm) aiForm.style.display = "block";
-  
-  // Reset form
-  document.getElementById("aiFile").value = "";
-  document.getElementById("aiResult").textContent = "";
-  document.getElementById("aiImagePreview").style.display = "none";
-  
-  // Notify everyone that AI popup was opened
-  socket.emit("open-ai-popup", {
-    roomId: roomId,
-    userName: username
-  });
-}
-
-function openAIPopupAsViewer(userName) {
-  const aiPopup = document.getElementById("aiPopup");
-  const aiForm = document.getElementById("aiForm");
-  const aiResult = document.getElementById("aiResult");
-  
-  isPopupInitiator = false;
-  aiPopup.style.display = "flex";
-  
-  // Hide upload form for viewers
-  if (aiForm) aiForm.style.display = "none";
-  
-  // Show viewer message
-  if (aiResult) {
-    aiResult.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 20px;">
-        <div style="font-size: 2rem; margin-bottom: 10px;">🩺</div>
-        <div><strong>${userName}</strong> is analyzing a medical image</div>
-        <div style="font-size: 0.9rem; margin-top: 8px;">Waiting for analysis results...</div>
-      </div>
-    `;
-  }
-  
-  // Clear any previous image
-  const aiImagePreview = document.getElementById("aiImagePreview");
-  if (aiImagePreview) {
-    aiImagePreview.style.display = "none";
-    aiImagePreview.src = "";
-  }
-}
-
-function closeAIPopupAsInitiator() {
-  const aiPopup = document.getElementById("aiPopup");
-  aiPopup.style.display = "none";
-  
-  // Reset state
-  isPopupInitiator = false;
-  
-  // Notify everyone that AI popup was closed
-  socket.emit("close-ai-popup", {
-    roomId: roomId,
-    userName: username
-  });
-}
-
-function closeAIPopupAsViewer() {
-  const aiPopup = document.getElementById("aiPopup");
-  aiPopup.style.display = "none";
-  
-  // Only reset local state, don't broadcast
-  isPopupInitiator = false;
-}
-
-function updateParticipantsList(updatedParticipants) {
-  participants = updatedParticipants;
-  const participantsList = document.getElementById("participantsList");
-  if (!participantsList) return;
-
-  participantsList.innerHTML = generateParticipantsListHTML();
-}
-
-function updateVideoLabels() {
-  // Update local video label
-  const localVideo = document.querySelector('.local-tile .video-label');
-  if (localVideo) {
-    localVideo.textContent = `${username} (You) ${isHost ? '👑' : ''}`;
-  }
-
-  // Update remote video labels
-  for (const [socketId, participant] of Object.entries(participants)) {
-    if (socketId !== socket.id && remoteVideoElements[socketId]) {
-      const remoteLabel = remoteVideoElements[socketId].querySelector('.video-label');
-      if (remoteLabel) {
-        remoteLabel.textContent = `${participant.name} ${participant.isHost ? '👑' : ''}`;
-      }
-    }
-  }
-}
-
 function setupAICollaboration() {
   const aiForm = document.getElementById("aiForm");
   const aiFile = document.getElementById("aiFile");
-  const aiAnalysisResults = document.getElementById("aiAnalysisResults");
   const generateReportBtn = document.getElementById("generateReportBtn");
-  const reportLoading = document.getElementById("reportLoading");
-  const reportResult = document.getElementById("reportResult");
 
   let currentImageData = null;
 
@@ -572,7 +382,6 @@ function setupAICollaboration() {
       return;
     }
 
-    // Show analyzing status in chat
     addChatMessage("System", `${username} is analyzing a medical image...`);
 
     const reader = new FileReader();
@@ -587,6 +396,7 @@ function setupAICollaboration() {
       }
       
       // Show analysis results section
+      const aiAnalysisResults = document.getElementById("aiAnalysisResults");
       if (aiAnalysisResults) {
         aiAnalysisResults.style.display = "block";
       }
@@ -650,6 +460,9 @@ function setupAICollaboration() {
       return;
     }
 
+    const reportLoading = document.getElementById("reportLoading");
+    const reportResult = document.getElementById("reportResult");
+    
     if (reportLoading) reportLoading.style.display = "block";
     if (reportResult) reportResult.innerHTML = "";
     generateReportBtn.disabled = true;
@@ -667,6 +480,13 @@ function setupAICollaboration() {
 
       addChatMessage("System", `${username} generated an AI medical report.`);
 
+      // Broadcast report to other participants
+      socket.emit("ai-report-generated", {
+        roomId: roomId,
+        report: report,
+        userName: username
+      });
+
     } catch (error) {
       console.error("Report generation failed:", error);
       if (reportResult) {
@@ -680,7 +500,7 @@ function setupAICollaboration() {
   });
 }
 
-// ==================== EXTERNAL FUNCTIONS ====================
+// AI Report Generation Function
 async function generateAIMedicalReport(imageData) {
   const mockReports = [
     "Chest X-ray shows clear lung fields with no evidence of consolidation or pleural effusion. The cardiomediastinal silhouette is within normal limits. No pneumothorax or focal opacities identified.",
@@ -711,40 +531,34 @@ function updateAIDisplay(imageData, prediction, confidence, userName) {
     `;
   }
 }
-// AI Report Generation Function
-async function generateAIMedicalReport(imageData) {
-  // For now, using mock reports - replace with actual Gemini API
-  const mockReports = [
-    "Chest X-ray shows clear lung fields with no evidence of consolidation or pleural effusion. The cardiomediastinal silhouette is within normal limits. No pneumothorax or focal opacities identified.",
-    
-    "Radiograph demonstrates mild peribronchial thickening with minimal hazy opacities in the lower lung zones. Heart size appears normal. Bony structures are intact without acute fracture.",
-    
-    "CT scan reveals bilateral ground-glass opacities predominantly in the peripheral lung zones. Mild interstitial thickening noted. No significant lymphadenopathy or pleural effusion.",
-    
-    "X-ray shows normal pulmonary vasculature and clear costophrenic angles. Diaphragmatic contours are smooth. No evidence of active pulmonary disease process.",
-    
-    "Imaging demonstrates patchy airspace opacities in the right middle and lower lobes. Small pleural effusion noted. Clinical correlation recommended for possible infectious process."
-  ];
 
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Return random mock report
-  return mockReports[Math.floor(Math.random() * mockReports.length)];
+// ===============================
+//   PARTICIPANTS MANAGEMENT
+// ===============================
+function updateParticipantsList(updatedParticipants) {
+  participants = updatedParticipants;
+  const participantsList = document.getElementById("participantsList");
+  if (!participantsList) return;
+
+  participantsList.innerHTML = generateParticipantsListHTML();
 }
 
-function updateAIDisplay(imageData, prediction, confidence, userName) {
-  const aiResult = document.getElementById("aiResult");
-  const aiImagePreview = document.getElementById("aiImagePreview");
+function updateVideoLabels() {
+  // Update local video label
+  const localVideo = document.querySelector('.local-tile .video-label');
+  if (localVideo) {
+    localVideo.textContent = `${username} (You) ${isHost ? '👑' : ''}`;
+  }
 
-  aiImagePreview.src = imageData;
-  aiImagePreview.style.display = "block";
-  
-  aiResult.innerHTML = `
-    <div class="shared-by">Shared by: ${escapeHtml(userName)}</div>
-    <div><strong>Prediction:</strong> ${escapeHtml(String(prediction))}</div>
-    <div><strong>Confidence:</strong> ${Number(confidence).toFixed(4)}</div>
-  `;
+  // Update remote video labels
+  for (const [socketId, participant] of Object.entries(participants)) {
+    if (socketId !== socket.id && remoteVideoElements[socketId]) {
+      const remoteLabel = remoteVideoElements[socketId].querySelector('.video-label');
+      if (remoteLabel) {
+        remoteLabel.textContent = `${participant.name} ${participant.isHost ? '👑' : ''}`;
+      }
+    }
+  }
 }
 
 // ===============================
@@ -840,8 +654,24 @@ function removePeer(socketId) {
 }
 
 // ===============================
-//   CHAT
+//   CHAT FUNCTIONALITY
 // ===============================
+function setupChat() {
+  const chatForm = document.getElementById("chatForm");
+  const chatInput = document.getElementById("chatInput");
+
+  if (chatForm) {
+    chatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const msg = chatInput.value.trim();
+      if (!msg) return;
+      socket.emit("chat-message", { roomId, message: msg, name: username });
+      addChatMessage("You", msg);
+      chatInput.value = "";
+    });
+  }
+}
+
 function addChatMessage(name, msg) {
   const chatMessages = document.getElementById("chatMessages");
   if (!chatMessages) return;
@@ -851,20 +681,6 @@ function addChatMessage(name, msg) {
   div.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${escapeHtml(msg)}`;
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-const chatForm = document.getElementById("chatForm");
-const chatInput = document.getElementById("chatInput");
-
-if (chatForm) {
-  chatForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const msg = chatInput.value.trim();
-    if (!msg) return;
-    socket.emit("chat-message", { roomId, message: msg, name: username });
-    addChatMessage("You", msg);
-    chatInput.value = "";
-  });
 }
 
 function escapeHtml(s) { 

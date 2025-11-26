@@ -10,7 +10,7 @@
   <div class="app-container meeting-layout">
     <!-- LEFT: Video area -->
     <div class="video-section">
-      <!-- Simplified Top bar -->
+      <!-- Top bar -->
       <div class="top-bar">
         <div class="room-info">
           <span class="badge">Medical Consultation</span>
@@ -38,57 +38,65 @@
         <button id="btnShareScreen" class="btn control-btn">
           🖥️ Share Screen
         </button>
-        <button id="btnParticipants" class="btn control-btn">
-          👥 Participants
-        </button>
         <button id="btnLeave" class="btn control-btn">
           🚪 Leave
         </button>
       </div>
     </div>
 
-    <!-- RIGHT: Sidebar (Chat + AI) -->
+    <!-- RIGHT: Sidebar (Participants + AI + Chat) -->
     <div class="sidebar">
+      <!-- Participants Section -->
+      <div class="sidebar-section participants-section">
+        <h2 class="sidebar-title">👥 Participants</h2>
+        <div id="participantsList" class="participants-list">
+          <!-- Participants will be listed here -->
+        </div>
+      </div>
+
+      <!-- AI Analysis Section -->
+      <div class="sidebar-section ai-section">
+        <h2 class="sidebar-title">🩺 AI Medical Analysis</h2>
+        
+        <form id="aiForm" class="ai-form">
+          <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
+          <input
+            id="aiFile"
+            type="file"
+            name="file"
+            accept="image/*"
+            class="input"
+          />
+          <button type="submit" class="btn primary-btn">
+            Upload & Analyze
+          </button>
+        </form>
+
+        <!-- AI Results -->
+        <div id="aiAnalysisResults">
+          <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
+          <div id="aiResult" class="ai-result"></div>
+          
+          <!-- Report Button -->
+          <div class="report-ai-section">
+            <button id="generateReportBtn" class="btn primary-btn report-btn">
+              📋 Generate AI Report
+            </button>
+            <div id="reportLoading" class="report-loading" style="display: none;">
+              ⏳ AI is generating medical report...
+            </div>
+            <div id="reportResult" class="ai-report-result"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Section -->
       <div class="sidebar-section chat-section">
-        <h2 class="sidebar-title">Chat & AI Analysis</h2>
+        <h2 class="sidebar-title">💬 Chat</h2>
         
         <!-- Chat Messages -->
         <div id="chatMessages" class="chat-messages">
           <!-- Messages will appear here -->
-        </div>
-
-        <!-- AI Analysis Section -->
-        <div class="ai-section">
-          <form id="aiForm" class="ai-form">
-            <label class="label">🩺 Upload Medical Image (X-Ray, CT, etc.)</label>
-            <input
-              id="aiFile"
-              type="file"
-              name="file"
-              accept="image/*"
-              class="input"
-            />
-            <button type="submit" class="btn primary-btn">
-              Upload & Analyze
-            </button>
-          </form>
-
-          <!-- AI Results -->
-          <div id="aiAnalysisResults">
-            <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
-            <div id="aiResult" class="ai-result"></div>
-            
-            <!-- Simple Report Button -->
-            <div class="report-ai-section">
-              <button id="generateReportBtn" class="btn primary-btn report-btn">
-                📋 Generate AI Report
-              </button>
-              <div id="reportLoading" class="report-loading" style="display: none;">
-                ⏳ AI is generating medical report...
-              </div>
-              <div id="reportResult" class="ai-report-result"></div>
-            </div>
-          </div>
         </div>
 
         <!-- Chat Input -->
@@ -101,22 +109,6 @@
             autocomplete="off"
           />
         </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Participants Popup -->
-  <div id="participantsPopup" class="popup-overlay">
-    <div class="popup-content">
-      <div class="popup-header">
-        <h2>👥 Participants</h2>
-        <button id="closeParticipantsPopup" class="btn close-btn">×</button>
-      </div>
-      
-      <div class="popup-body">
-        <div id="participantsList" class="participants-list">
-          <!-- Participants will be listed here -->
-        </div>
       </div>
     </div>
   </div>
