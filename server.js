@@ -24,8 +24,23 @@ const io = new Server(server, {
 // Serve static files (public folder)
 app.use(express.static(path.join(__dirname, "public")));
 
+// ==========================
+//   ROUTES
+// ==========================
+
+// Landing page as default
 app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "landing.html"));
+});
+
+// Join meeting page
+app.get("/join", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Video call page
+app.get("/room", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "room.html"));
 });
 
 // ==========================
@@ -286,4 +301,6 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+  console.log(`📱 Landing Page: http://localhost:${PORT}/`);
+  console.log(`🎥 Join Meeting: http://localhost:${PORT}/join`);
 });

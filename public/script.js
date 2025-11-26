@@ -3,7 +3,7 @@
 // ===============================
 
 // CONFIGURATION - CHANGE THIS URL WHEN NGROK RESTARTS
-const AI_SERVER_URL =  "https://santalaceous-catatonically-emile.ngrok-free.dev";
+const AI_SERVER_URL =  "http://127.0.0.1:5000" ;
 
 let socket = null;
 let localStream = null;
@@ -154,6 +154,21 @@ function registerSocketEvents() {
     updateHostUI();
     showNotification("You are now the host");
   });
+
+  // Drawing events
+socket.on("drawing-action", (data) => {
+  if (annotationTool && data.userId !== socket.id) {
+    annotationTool.handleRemoteDrawing(data);
+    
+    // Update user colors if new user
+    if (!userColors[data.userId]) {
+      userColors[data.userId] = data.data.color || '#4CAF50';
+      if (annotationTool.updateUserIndicators) {
+        annotationTool.updateUserIndicators();
+      }
+    }
+  }
+});
 
   // AI Report Updates
 socket.on("ai-report-update", ({ report, userName }) => {
@@ -542,18 +557,665 @@ function setupAICollaboration() {
   const generateReportBtn = document.getElementById("generateReportBtn");
   const reportLoading = document.getElementById("reportLoading");
   const reportResult = document.getElementById("reportResult");
+  const expandPopupBtn = document.getElementById("expandPopup");
 
   let currentImageData = null;
+  let annotationTool = null;
+  const userColors = {};
+  let popupState = {
+    isExpanded: false,
+    position: { x: 0, y: 0 },
+    size: { width: '500px', height: '400px' }
+  };
 
+  // ==================== ANNOTATION TOOLS ====================
+  class AnnotationTool {
+  constructor() {
+    this.canvas = document.getElementById('annotationCanvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.isDrawing = false;
+    this.currentTool = 'pen';
+    this.currentColor = '#4CAF50';
+    this.brushSize = 3;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.startX = 0;
+    this.startY = 0;
+    this.userId = socket.id;
+    this.drawingHistory = [];
+    this.tempCanvas = document.createElement('canvas');
+    this.tempCtx = this.tempCanvas.getContext('2d');
+    this.isShapePreview = false;
+    
+    this.setupEventListeners();
+    this.assignUserColor();
+    this.saveState(); // Initial state
+  }
+
+  setupEventListeners() {
+    this.canvas.addEventListener('mousedown', this.startDrawing.bind(this));
+    this.canvas.addEventListener('mousemove', this.draw.bind(this));
+    this.canvas.addEventListener('mouseup', this.stopDrawing.bind(this));
+    this.canvas.addEventListener('mouseout', this.stopDrawing.bind(this));
+    
+    // Touch events
+    this.canvas.addEventListener('touchstart', this.startDrawing.bind(this));
+    this.canvas.addEventListener('touchmove', this.draw.bind(this));
+    this.canvas.addEventListener('touchend', this.stopDrawing.bind(this));
+  }
+
+  assignUserColor() {
+    const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#FFEB3B'];
+    userColors[this.userId] = colors[Object.keys(userColors).length % colors.length];
+    this.currentColor = userColors[this.userId];
+    document.getElementById('colorPicker').value = this.currentColor;
+    document.getElementById('userColorBadge').style.backgroundColor = this.currentColor;
+    this.updateUserIndicators();
+  }
+
+  updateUserIndicators() {
+    const container = document.getElementById('userIndicators');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    Object.entries(userColors).forEach(([userId, color]) => {
+      const participant = participants[userId];
+      if (participant) {
+        const indicator = document.createElement('div');
+        indicator.className = 'user-indicator';
+        indicator.innerHTML = `
+          <div class="user-indicator-color" style="background-color: ${color};"></div>
+          <span>${participant.name}</span>
+        `;
+        container.appendChild(indicator);
+      }
+    });
+  }
+
+  setTool(tool) {
+    this.currentTool = tool;
+    this.updateCanvasCursor();
+  }
+
+  updateCanvasCursor() {
+    if (this.currentTool === 'eraser') {
+      this.canvas.style.cursor = 'cell';
+    } else if (this.isShapeTool()) {
+      this.canvas.style.cursor = 'crosshair';
+    } else {
+      this.canvas.style.cursor = 'crosshair';
+    }
+  }
+
+  setColor(color) {
+    this.currentColor = color;
+    userColors[this.userId] = color;
+    this.updateUserIndicators();
+  }
+
+  setBrushSize(size) {
+    this.brushSize = parseInt(size);
+  }
+
+  startDrawing(e) {
+    e.preventDefault();
+    this.isDrawing = true;
+    const pos = this.getMousePos(e);
+    [this.startX, this.startY] = [pos.x, pos.y];
+    [this.lastX, this.lastY] = [pos.x, pos.y];
+
+    // Initialize temp canvas for shape previews
+    if (this.isShapeTool()) {
+      this.tempCanvas.width = this.canvas.width;
+      this.tempCanvas.height = this.canvas.height;
+      this.isShapePreview = true;
+    }
+    
+    broadcastDrawingAction('start', {
+      tool: this.currentTool,
+      color: this.currentColor,
+      brushSize: this.brushSize,
+      x: this.startX,
+      y: this.startY
+    });
+  }
+
+  draw(e) {
+    if (!this.isDrawing) return;
+    
+    e.preventDefault();
+    const pos = this.getMousePos(e);
+    const currentX = pos.x;
+    const currentY = pos.y;
+
+    if (this.isShapeTool() && this.isShapePreview) {
+      // Draw shape preview on temp canvas
+      this.drawShapePreview(this.startX, this.startY, currentX, currentY);
+    } else {
+      // Freehand drawing (pen, eraser, highlighter)
+      this.drawFreehand(currentX, currentY);
+    }
+
+    [this.lastX, this.lastY] = [currentX, currentY];
+  }
+
+  drawFreehand(currentX, currentY) {
+    this.ctx.lineWidth = this.brushSize;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    if (this.currentTool === 'eraser') {
+      this.ctx.globalCompositeOperation = 'destination-out';
+      this.ctx.strokeStyle = 'rgba(0,0,0,1)';
+    } else if (this.currentTool === 'highlighter') {
+      this.ctx.globalCompositeOperation = 'source-over';
+      this.ctx.strokeStyle = this.currentColor + '80'; // Add transparency
+      this.ctx.lineWidth = this.brushSize * 3; // Thicker for highlighter
+    } else {
+      this.ctx.globalCompositeOperation = 'source-over';
+      this.ctx.strokeStyle = this.currentColor;
+    }
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.lastX, this.lastY);
+    this.ctx.lineTo(currentX, currentY);
+    this.ctx.stroke();
+
+    broadcastDrawingAction('draw', {
+      tool: this.currentTool,
+      color: this.currentColor,
+      brushSize: this.brushSize,
+      fromX: this.lastX,
+      fromY: this.lastY,
+      toX: currentX,
+      toY: currentY
+    });
+  }
+
+  drawShapePreview(startX, startY, currentX, currentY) {
+    // Clear temp canvas
+    this.tempCtx.clearRect(0, 0, this.tempCanvas.width, this.tempCanvas.height);
+    
+    // Copy current canvas state to temp canvas
+    this.tempCtx.drawImage(this.canvas, 0, 0);
+    
+    // Draw the preview shape with dashed line
+    this.tempCtx.strokeStyle = this.currentColor;
+    this.tempCtx.lineWidth = this.brushSize;
+    this.tempCtx.setLineDash([5, 5]); // Dashed line for preview
+    this.tempCtx.globalAlpha = 0.7; // Semi-transparent preview
+    
+    switch (this.currentTool) {
+      case 'rectangle':
+        const rectWidth = currentX - startX;
+        const rectHeight = currentY - startY;
+        this.tempCtx.strokeRect(startX, startY, rectWidth, rectHeight);
+        break;
+        
+      case 'circle':
+        const radius = Math.sqrt(Math.pow(currentX - startX, 2) + Math.pow(currentY - startY, 2));
+        this.tempCtx.beginPath();
+        this.tempCtx.arc(startX, startY, radius, 0, 2 * Math.PI);
+        this.tempCtx.stroke();
+        break;
+        
+      case 'arrow':
+        this.drawArrow(this.tempCtx, startX, startY, currentX, currentY, true);
+        break;
+    }
+    
+    // Draw the preview on main canvas temporarily
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.drawImage(this.canvas, 0, 0); // Restore original
+    this.ctx.drawImage(this.tempCanvas, 0, 0); // Draw preview on top
+  }
+
+  drawArrow(ctx, fromX, fromY, toX, toY, isPreview = false) {
+    const headLength = 15;
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    
+    if (isPreview) {
+      ctx.setLineDash([5, 5]);
+      ctx.globalAlpha = 0.7;
+    } else {
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1.0;
+    }
+    
+    // Draw line
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+    
+    // Draw arrow head
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
+    
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
+    ctx.stroke();
+    
+    // Reset line properties
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1.0;
+  }
+
+  stopDrawing() {
+    if (!this.isDrawing) return;
+    
+    this.isDrawing = false;
+    
+    // For shapes, finalize the drawing
+    if (this.isShapeTool() && this.isShapePreview) {
+      this.finalizeShape();
+      this.isShapePreview = false;
+    }
+    
+    this.saveState(); // Save state for undo
+    broadcastDrawingAction('stop', {});
+  }
+
+  finalizeShape() {
+    // Draw the final shape on the main canvas (HOLLOW - no fill)
+    this.ctx.strokeStyle = this.currentColor;
+    this.ctx.lineWidth = this.brushSize;
+    this.ctx.setLineDash([]); // Solid line for final shape
+    this.ctx.globalAlpha = 1.0;
+    
+    switch (this.currentTool) {
+      case 'rectangle':
+        const rectWidth = this.lastX - this.startX;
+        const rectHeight = this.lastY - this.startY;
+        this.ctx.strokeRect(this.startX, this.startY, rectWidth, rectHeight);
+        break;
+        
+      case 'circle':
+        const radius = Math.sqrt(Math.pow(this.lastX - this.startX, 2) + Math.pow(this.lastY - this.startY, 2));
+        this.ctx.beginPath();
+        this.ctx.arc(this.startX, this.startY, radius, 0, 2 * Math.PI);
+        this.ctx.stroke(); // stroke() makes it hollow, fill() would fill it
+        break;
+        
+      case 'arrow':
+        this.drawArrow(this.ctx, this.startX, this.startY, this.lastX, this.lastY, false);
+        break;
+    }
+
+    broadcastDrawingAction('shape', {
+      tool: this.currentTool,
+      color: this.currentColor,
+      brushSize: this.brushSize,
+      startX: this.startX,
+      startY: this.startY,
+      endX: this.lastX,
+      endY: this.lastY
+    });
+  }
+
+  isShapeTool() {
+    return ['rectangle', 'circle', 'arrow'].includes(this.currentTool);
+  }
+
+  getMousePos(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+    
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  }
+
+  clearCanvas() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.saveState();
+    broadcastDrawingAction('clear', {});
+  }
+
+  // UNDO FUNCTIONALITY
+  saveState() {
+    // Save current canvas state
+    const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    this.drawingHistory.push(imageData);
+    
+    // Keep only last 20 states to prevent memory issues
+    if (this.drawingHistory.length > 20) {
+      this.drawingHistory.shift();
+    }
+  }
+
+  undo() {
+    if (this.drawingHistory.length > 1) {
+      // Remove current state
+      this.drawingHistory.pop();
+      // Restore previous state
+      const previousState = this.drawingHistory[this.drawingHistory.length - 1];
+      this.ctx.putImageData(previousState, 0, 0);
+      
+      broadcastDrawingAction('undo', {});
+    } else if (this.drawingHistory.length === 1) {
+      // Clear canvas if only initial state remains
+      this.clearCanvas();
+    }
+  }
+
+  resizeCanvasToImage() {
+    const img = document.getElementById('aiImagePreview');
+    if (img && img.naturalWidth) {
+      this.canvas.width = img.naturalWidth;
+      this.canvas.height = img.naturalHeight;
+      this.canvas.style.width = '100%';
+      this.canvas.style.height = '100%';
+      this.saveState(); // Save initial resized state
+    }
+  }
+
+  handleRemoteDrawing(data) {
+    if (data.userId === this.userId) return;
+    
+    if (data.action === 'start') {
+      this.ctx.lineWidth = data.data.brushSize;
+      this.ctx.lineCap = 'round';
+      this.ctx.strokeStyle = data.data.color;
+      this.ctx.beginPath();
+      this.ctx.moveTo(data.data.x, data.data.y);
+    }
+    else if (data.action === 'draw') {
+      this.ctx.lineWidth = data.data.brushSize;
+      this.ctx.strokeStyle = data.data.color;
+      this.ctx.globalCompositeOperation = 'source-over';
+      
+      if (data.data.tool === 'eraser') {
+        this.ctx.globalCompositeOperation = 'destination-out';
+      } else if (data.data.tool === 'highlighter') {
+        this.ctx.strokeStyle = data.data.color + '80';
+        this.ctx.lineWidth = data.data.brushSize * 3;
+      }
+      
+      this.ctx.beginPath();
+      this.ctx.moveTo(data.data.fromX, data.data.fromY);
+      this.ctx.lineTo(data.data.toX, data.data.toY);
+      this.ctx.stroke();
+    }
+    else if (data.action === 'shape') {
+      this.ctx.strokeStyle = data.data.color;
+      this.ctx.lineWidth = data.data.brushSize;
+      this.ctx.setLineDash([]);
+      
+      switch (data.data.tool) {
+        case 'rectangle':
+          const rectWidth = data.data.endX - data.data.startX;
+          const rectHeight = data.data.endY - data.data.startY;
+          this.ctx.strokeRect(data.data.startX, data.data.startY, rectWidth, rectHeight);
+          break;
+        case 'circle':
+          const radius = Math.sqrt(Math.pow(data.data.endX - data.data.startX, 2) + Math.pow(data.data.endY - data.data.startY, 2));
+          this.ctx.beginPath();
+          this.ctx.arc(data.data.startX, data.data.startY, radius, 0, 2 * Math.PI);
+          this.ctx.stroke();
+          break;
+        case 'arrow':
+          this.drawArrow(this.ctx, data.data.startX, data.data.startY, data.data.endX, data.data.endY, false);
+          break;
+      }
+    }
+    else if (data.action === 'clear') {
+      this.clearCanvas();
+    }
+    else if (data.action === 'undo') {
+      this.undo();
+    }
+  }
+}
+
+
+  function broadcastDrawingAction(action, data) {
+    if (socket) {
+      socket.emit('drawing-action', {
+        roomId: roomId,
+        action: action,
+        data: data,
+        userId: socket.id,
+        userName: username
+      });
+    }
+  }
+
+  // Initialize annotation tools
+  function initAnnotationTools() {
+    if (!annotationTool) {
+      annotationTool = new AnnotationTool();
+    }
+  }
+
+  // Setup tool events
+  function setupAnnotationToolEvents() {
+    // Tool buttons
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        if (annotationTool) {
+          annotationTool.setTool(e.target.dataset.tool);
+        }
+      });
+    });
+
+    // Color picker
+    const colorPicker = document.getElementById('colorPicker');
+    if (colorPicker) {
+      colorPicker.addEventListener('change', (e) => {
+        if (annotationTool) {
+          annotationTool.setColor(e.target.value);
+        }
+      });
+    }
+
+    // Brush size
+    const brushSize = document.getElementById('brushSize');
+    const brushSizeValue = document.getElementById('brushSizeValue');
+    if (brushSize && brushSizeValue) {
+      brushSize.addEventListener('input', (e) => {
+        if (annotationTool) {
+          annotationTool.setBrushSize(e.target.value);
+          brushSizeValue.textContent = e.target.value + 'px';
+        }
+      });
+    }
+
+    // Clear canvas
+    const clearCanvas = document.getElementById('clearCanvas');
+    if (clearCanvas) {
+      clearCanvas.addEventListener('click', () => {
+        if (annotationTool && confirm('Clear all drawings?')) {
+          annotationTool.clearCanvas();
+          broadcastDrawingAction('clear', {});
+        }
+      });
+    }
+
+    // Undo button - FIXED
+    const undoDrawing = document.getElementById('undoDrawing');
+    if (undoDrawing) {
+      undoDrawing.addEventListener('click', () => {
+    if (annotationTool) {
+      annotationTool.undo();
+    }
+  });
+}
+  }
+
+  // ==================== POPUP CONTROLS ====================
+  function initPopupControls() {
+    const popupContent = document.getElementById('aiPopupContent');
+    const dragHandle = document.querySelector('.drag-handle');
+    
+    if (!popupContent || !dragHandle) return;
+    
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    dragHandle.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDrag);
+
+    function startDrag(e) {
+      if (e.target.closest('.popup-controls')) return;
+      isDragging = true;
+      const rect = popupContent.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+      popupContent.style.cursor = 'grabbing';
+    }
+
+    function drag(e) {
+      if (!isDragging) return;
+      popupContent.style.left = (e.clientX - dragOffset.x) + 'px';
+      popupContent.style.top = (e.clientY - dragOffset.y) + 'px';
+    }
+
+    function stopDrag() {
+      isDragging = false;
+      popupContent.style.cursor = 'default';
+    }
+
+    // Expand button
+    if (expandPopupBtn) {
+      expandPopupBtn.addEventListener('click', toggleExpand);
+    }
+  }
+
+  function toggleExpand() {
+    const popupContent = document.getElementById('aiPopupContent');
+    if (!popupContent) return;
+    
+    popupState.isExpanded = !popupState.isExpanded;
+    
+    if (popupState.isExpanded) {
+      popupState.position = {
+        x: popupContent.style.left,
+        y: popupContent.style.top
+      };
+      popupState.size = {
+        width: popupContent.style.width,
+        height: popupContent.style.height
+      };
+      
+      popupContent.style.width = '90vw';
+      popupContent.style.height = '90vh';
+      popupContent.style.left = '5vw';
+      popupContent.style.top = '5vh';
+      expandPopupBtn.textContent = '⛶';
+    } else {
+      popupContent.style.width = popupState.size.width || '500px';
+      popupContent.style.height = popupState.size.height || '400px';
+      popupContent.style.left = popupState.position.x;
+      popupContent.style.top = popupState.position.y;
+      expandPopupBtn.textContent = '⛶';
+    }
+  }
+
+  // ==================== STATE MANAGEMENT ====================
+  function savePopupState() {
+    const popupContent = document.getElementById('aiPopupContent');
+    if (!popupContent) return;
+    
+    localStorage.setItem('aiPopupState', JSON.stringify({
+      isExpanded: popupState.isExpanded,
+      position: { 
+        x: popupContent.style.left, 
+        y: popupContent.style.top 
+      },
+      size: { 
+        width: popupContent.style.width, 
+        height: popupContent.style.height 
+      }
+    }));
+  }
+
+  function loadPopupState() {
+    const savedState = localStorage.getItem('aiPopupState');
+    if (savedState) {
+      const state = JSON.parse(savedState);
+      const popupContent = document.getElementById('aiPopupContent');
+      if (!popupContent) return;
+      
+      if (state.position.x && state.position.y) {
+        popupContent.style.left = state.position.x;
+        popupContent.style.top = state.position.y;
+      }
+      
+      if (state.size.width && state.size.height) {
+        popupContent.style.width = state.size.width;
+        popupContent.style.height = state.size.height;
+      }
+      
+      popupState.isExpanded = state.isExpanded;
+      if (expandPopupBtn) {
+        expandPopupBtn.textContent = state.isExpanded ? '⛶' : '⛶';
+      }
+    }
+  }
+
+  function saveAnalysisResults(imageData, prediction, confidence) {
+    localStorage.setItem('lastAnalysis', JSON.stringify({
+      imageData: imageData,
+      prediction: prediction,
+      confidence: confidence,
+      timestamp: Date.now()
+    }));
+  }
+
+  function loadLastAnalysis() {
+    const lastAnalysis = localStorage.getItem('lastAnalysis');
+    if (lastAnalysis) {
+      const analysis = JSON.parse(lastAnalysis);
+      currentImageData = analysis.imageData;
+      
+      if (analysisResults) {
+        analysisResults.style.display = 'block';
+      }
+      
+      const aiImagePreview = document.getElementById('aiImagePreview');
+      if (aiImagePreview) {
+        aiImagePreview.src = currentImageData;
+        aiImagePreview.style.display = 'block';
+      }
+      
+      const aiResult = document.getElementById('aiResult');
+      if (aiResult) {
+        aiResult.innerHTML = `
+          <div class="shared-by">Last Analysis</div>
+          <div><strong>Prediction:</strong> ${escapeHtml(analysis.prediction)}</div>
+          <div><strong>Confidence:</strong> ${analysis.confidence}</div>
+        `;
+      }
+      
+      initAnnotationTools();
+      setTimeout(() => {
+        if (annotationTool) {
+          annotationTool.resizeCanvasToImage();
+        }
+      }, 100);
+    }
+  }
+
+  // ==================== MAIN FORM HANDLER ====================
   aiForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const file = aiFile.files[0];
     if (!file) {
-      document.getElementById("aiResult").textContent = "Please choose an image file.";
+      const aiResult = document.getElementById("aiResult");
+      if (aiResult) {
+        aiResult.textContent = "Please choose an image file.";
+      }
       return;
     }
 
-    // Show analyzing message to everyone immediately
     socket.emit("ai-analysis-start", {
       roomId: roomId,
       userName: username
@@ -561,17 +1223,33 @@ function setupAICollaboration() {
 
     const reader = new FileReader();
     reader.onload = async function(e) {
-      currentImageData = e.target.result; // Store for report generation
+      currentImageData = e.target.result;
       
-      // Show image preview
       const aiImagePreview = document.getElementById("aiImagePreview");
-      aiImagePreview.src = currentImageData;
-      aiImagePreview.style.display = "block";
+      if (aiImagePreview) {
+        aiImagePreview.src = currentImageData;
+        aiImagePreview.style.display = "block";
+      }
       
-      // Show analysis results section
-      analysisResults.style.display = "block";
+      if (analysisResults) {
+        analysisResults.style.display = "block";
+      }
       
-      document.getElementById("aiResult").textContent = "Analyzing medical image...";
+      // Initialize annotation tools after image loads
+      if (aiImagePreview) {
+        aiImagePreview.onload = function() {
+          initAnnotationTools();
+          setupAnnotationToolEvents();
+          if (annotationTool) {
+            annotationTool.resizeCanvasToImage();
+          }
+        };
+      }
+      
+      const aiResult = document.getElementById("aiResult");
+      if (aiResult) {
+        aiResult.textContent = "Analyzing medical image...";
+      }
 
       try {
         const formData = new FormData();
@@ -588,18 +1266,23 @@ function setupAICollaboration() {
         const data = await res.json();
         if (!data?.prediction) throw new Error("Invalid response from AI server");
 
-        // Show results
-        document.getElementById("aiResult").innerHTML = `
-          <div class="shared-by">Shared by: You</div>
-          <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
-          <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
-        `;
+        if (aiResult) {
+          aiResult.innerHTML = `
+            <div class="shared-by">Shared by: You</div>
+            <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
+            <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
+          `;
+        }
 
-        // Reset report section
-        reportResult.innerHTML = "";
-        reportLoading.style.display = "none";
+        saveAnalysisResults(currentImageData, data.prediction, data.confidence);
 
-        // Broadcast to all participants
+        if (reportResult) {
+          reportResult.innerHTML = "";
+        }
+        if (reportLoading) {
+          reportLoading.style.display = "none";
+        }
+
         socket.emit("ai-analysis-result", {
           roomId: roomId,
           imageData: currentImageData,
@@ -610,40 +1293,37 @@ function setupAICollaboration() {
 
       } catch (err) {
         console.error("AI analysis failed:", err);
-        document.getElementById("aiResult").textContent = "Error processing image. Please try again.";
-        
-        socket.emit("ai-analysis-error", {
-          roomId: roomId,
-          userName: username,
-          error: err.message
-        });
+        const aiResult = document.getElementById("aiResult");
+        if (aiResult) {
+          aiResult.textContent = "Error processing image. Please try again.";
+        }
       }
     };
     reader.readAsDataURL(file);
   });
 
-  // Report AI Button Handler
+  // ==================== REPORT AI BUTTON HANDLER ====================
   generateReportBtn.addEventListener("click", async () => {
     if (!currentImageData) {
       alert("Please analyze an image first.");
       return;
     }
 
-    reportLoading.style.display = "block";
-    reportResult.innerHTML = "";
+    if (reportLoading) reportLoading.style.display = "block";
+    if (reportResult) reportResult.innerHTML = "";
     generateReportBtn.disabled = true;
 
     try {
-      // Generate AI report using Gemini API
       const report = await generateAIMedicalReport(currentImageData);
       
-      reportResult.innerHTML = `
-        <div class="shared-by">AI Medical Report</div>
-        <div>${report}</div>
-      `;
-      reportResult.className = "ai-report-result";
+      if (reportResult) {
+        reportResult.innerHTML = `
+          <div class="shared-by">AI Medical Report</div>
+          <div>${report}</div>
+        `;
+        reportResult.className = "ai-report-result";
+      }
 
-      // Broadcast report to all participants
       socket.emit("ai-report-generated", {
         roomId: roomId,
         report: report,
@@ -652,15 +1332,65 @@ function setupAICollaboration() {
 
     } catch (error) {
       console.error("Report generation failed:", error);
-      reportResult.innerHTML = "❌ Failed to generate report. Please try again.";
-      reportResult.className = "ai-report-result report-error";
+      if (reportResult) {
+        reportResult.innerHTML = "❌ Failed to generate report. Please try again.";
+        reportResult.className = "ai-report-result report-error";
+      }
     } finally {
-      reportLoading.style.display = "none";
+      if (reportLoading) reportLoading.style.display = "none";
       generateReportBtn.disabled = false;
     }
   });
+
+  // ==================== INITIALIZATION ====================
+  initPopupControls();
+
+  // Modified popup handlers
+  const originalOpenAIPopupAsInitiator = window.openAIPopupAsInitiator;
+  window.openAIPopupAsInitiator = function() {
+    originalOpenAIPopupAsInitiator();
+    loadPopupState();
+    loadLastAnalysis();
+  };
+
+  const originalCloseAIPopupAsInitiator = window.closeAIPopupAsInitiator;
+  window.closeAIPopupAsInitiator = function() {
+    savePopupState();
+    originalCloseAIPopupAsInitiator();
+  };
 }
 
+// ==================== EXTERNAL FUNCTIONS ====================
+async function generateAIMedicalReport(imageData) {
+  const mockReports = [
+    "Chest X-ray shows clear lung fields with no evidence of consolidation or pleural effusion. The cardiomediastinal silhouette is within normal limits. No pneumothorax or focal opacities identified.",
+    "Radiograph demonstrates mild peribronchial thickening with minimal hazy opacities in the lower lung zones. Heart size appears normal. Bony structures are intact without acute fracture.",
+    "CT scan reveals bilateral ground-glass opacities predominantly in the peripheral lung zones. Mild interstitial thickening noted. No significant lymphadenopathy or pleural effusion.",
+    "X-ray shows normal pulmonary vasculature and clear costophrenic angles. Diaphragmatic contours are smooth. No evidence of active pulmonary disease process.",
+    "Imaging demonstrates patchy airspace opacities in the right middle and lower lobes. Small pleural effusion noted. Clinical correlation recommended for possible infectious process."
+  ];
+
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  return mockReports[Math.floor(Math.random() * mockReports.length)];
+}
+
+function updateAIDisplay(imageData, prediction, confidence, userName) {
+  const aiResult = document.getElementById("aiResult");
+  const aiImagePreview = document.getElementById("aiImagePreview");
+
+  if (aiImagePreview) {
+    aiImagePreview.src = imageData;
+    aiImagePreview.style.display = "block";
+  }
+  
+  if (aiResult) {
+    aiResult.innerHTML = `
+      <div class="shared-by">Shared by: ${escapeHtml(userName)}</div>
+      <div><strong>Prediction:</strong> ${escapeHtml(String(prediction))}</div>
+      <div><strong>Confidence:</strong> ${Number(confidence).toFixed(4)}</div>
+    `;
+  }
+}
 // AI Report Generation Function
 async function generateAIMedicalReport(imageData) {
   // For now, using mock reports - replace with actual Gemini API

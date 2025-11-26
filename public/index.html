@@ -2,28 +2,73 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>MediZoom - Medical Video Consultations</title>
+  <title>MediZoom - Join Medical Consultation</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🩺</text></svg>">
+  <style>
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      transition: color 0.2s ease;
+    }
+
+    .back-link:hover {
+      color: var(--accent);
+    }
+
+    .host-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-subtle);
+      text-align: center;
+    }
+
+    .host-btn {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: inline-block;
+    }
+
+    .host-btn:hover {
+      background: var(--accent);
+      color: white;
+    }
+  </style>
 </head>
 <body data-page="home">
   <div class="app-container center">
     <div class="card">
-      <h1 class="app-title">🩺 MediZoom</h1>
+      <a href="landing.html" class="back-link">
+        ← Back to Home
+      </a>
+      
+      <h1 class="app-title">🩺 Join Consultation</h1>
       <p class="app-subtitle">
-        Secure medical video consultations with AI-powered image analysis.
+        Enter the meeting ID to join a medical video consultation.
       </p>
 
       <!-- Room join form -->
       <form id="joinForm" class="form">
         <!-- Room number input (required) -->
-        <label for="roomInput" class="label">Room Number</label>
+        <label for="roomInput" class="label">Meeting ID</label>
         <input
           id="roomInput"
           type="text"
           class="input"
-          placeholder="e.g. 1234"
+          placeholder="e.g. 123456789"
           autocomplete="off"
+          required
         />
 
         <!-- Optional display name -->
@@ -40,12 +85,19 @@
         <div id="homeError" class="error-text"></div>
 
         <button type="submit" class="btn primary-btn">
-          Join Consultation
+          🎥 Join Consultation
         </button>
       </form>
 
-      <p class="hint">
-        💡 Share the room number with colleagues to start a medical consultation.
+      <div class="host-section">
+        <p class="hint">Don't have a meeting ID?</p>
+        <a href="landing.html" class="host-btn">
+          🆕 Host a New Meeting
+        </a>
+      </div>
+
+      <p class="hint" style="margin-top: 20px;">
+        💡 Share the meeting ID with colleagues to start a medical consultation.
       </p>
     </div>
   </div>

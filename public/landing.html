@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MediZoom - Medical Video Consultations</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🩺</text></svg>">
+  <style>
+    /* Light Theme Variables */
+    :root {
+      --primary-blue: #1a73e8;
+      --primary-green: #34a853;
+      --light-bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-dark: #2d3748;
+      --text-muted: #718096;
+      --border-light: #e2e8f0;
+      --accent-light: #ebf8ff;
+      --shadow-soft: 0 10px 25px rgba(0, 0, 0, 0.05);
+      --shadow-medium: 0 20px 40px rgba(0, 0, 0, 0.1);
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+    }
+
+    /* Landing Page Styles with Light Theme */
+    .landing-container {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e6f3ff 50%, #d4edff 100%);
+      display: flex;
+      flex-direction: column;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: var(--text-dark);
+    }
+
+    /* Header - Professional Light */
+    .landing-header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-light);
+      padding: 20px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary-blue);
+      text-decoration: none;
+    }
+
+    .logo-icon {
+      color: var(--primary-green);
+      font-size: 1.8rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      padding: 8px 16px;
+      border-radius: 8px;
+    }
+
+    .nav-link:hover {
+      color: var(--primary-blue);
+      background: var(--accent-light);
+    }
+
+    /* Hero Section - Light Theme */
+    .hero-section {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 32px;
+      text-align: center;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"><polygon fill="%231a73e8" fill-opacity="0.03" points="0,1000 1000,0 1000,1000"/></svg>') no-repeat center center;
+      background-size: cover;
+    }
+
+    .hero-content {
+      max-width: 700px;
+    }
+
+    .hero-title {
+      font-size: 3.2rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--text-dark);
+      line-height: 1.2;
+    }
+
+    .hero-title span {
+      color: var(--primary-blue);
+    }
+
+    .hero-subtitle {
+      font-size: 1.3rem;
+      color: var(--text-muted);
+      margin-bottom: 48px;
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    /* Action Buttons - Professional Style */
+    .action-buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-join {
+      background: var(--primary-blue);
+      color: white;
+      padding: 18px 36px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.1rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(26, 115, 232, 0.3);
+    }
+
+    .btn-join:hover {
+      background: #1557b7;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(26, 115, 232, 0.4);
+    }
+
+    .btn-create {
+      background: white;
+      color: var(--primary-blue);
+      padding: 18px 36px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.1rem;
+      border: 2px solid var(--primary-blue);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+      justify-content: center;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .btn-create:hover {
+      background: var(--accent-light);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-medium);
+    }
+
+    /* Auth Modal */
+    .auth-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .auth-content {
+      background: white;
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      width: 90%;
+      max-width: 450px;
+      box-shadow: var(--shadow-medium);
+      text-align: center;
+    }
+
+    .auth-header {
+      margin-bottom: 30px;
+    }
+
+    .auth-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 10px;
+    }
+
+    .auth-subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    .auth-options {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 25px;
+    }
+
+    .auth-btn {
+      padding: 16px 24px;
+      border-radius: 12px;
+      border: 2px solid var(--border-light);
+      background: white;
+      color: var(--text-dark);
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .auth-btn:hover {
+      border-color: var(--primary-blue);
+      background: var(--accent-light);
+      transform: translateY(-1px);
+    }
+
+    .auth-btn.login {
+      border-color: var(--primary-blue);
+      background: var(--primary-blue);
+      color: white;
+    }
+
+    .auth-btn.login:hover {
+      background: #1557b7;
+      border-color: #1557b7;
+    }
+
+    .auth-footer {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .close-auth {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+    }
+
+    .close-auth:hover {
+      background: var(--accent-light);
+      color: var(--text-dark);
+    }
+
+    /* Features Section */
+    .features-section {
+      padding: 100px 32px;
+      background: white;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 60px;
+      color: var(--text-dark);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .feature-card {
+      background: var(--card-bg);
+      padding: 40px 30px;
+      border-radius: var(--radius-lg);
+      text-align: center;
+      border: 1px solid var(--border-light);
+      transition: all 0.3s ease;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .feature-card:hover {
+      transform: translateY(-8px);
+      border-color: var(--primary-blue);
+      box-shadow: var(--shadow-medium);
+    }
+
+    .feature-icon {
+      font-size: 2.5rem;
+      margin-bottom: 24px;
+      color: var(--primary-blue);
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .feature-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-dark);
+    }
+
+    .feature-description {
+      color: var(--text-muted);
+      line-height: 1.6;
+      font-size: 1rem;
+    }
+
+    /* Footer */
+    .landing-footer {
+      background: var(--card-bg);
+      padding: 60px 32px;
+      text-align: center;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .footer-text {
+      color: var(--text-muted);
+      margin-bottom: 30px;
+      font-size: 1.1rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .landing-header {
+        padding: 16px 20px;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .nav-links {
+        gap: 20px;
+      }
+
+      .hero-title {
+        font-size: 2.4rem;
+      }
+
+      .hero-subtitle {
+        font-size: 1.1rem;
+      }
+
+      .action-buttons {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .btn-join,
+      .btn-create {
+        width: 100%;
+        max-width: 300px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .auth-content {
+        padding: 30px 20px;
+        margin: 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero-title {
+        font-size: 2rem;
+      }
+      
+      .section-title {
+        font-size: 2rem;
+      }
+      
+      .feature-card {
+        padding: 30px 20px;
+      }
+    }
+  </style>
+</head>
+<body data-page="landing">
+  <div class="landing-container">
+    <!-- Header -->
+    <header class="landing-header">
+      <a href="landing.html" class="logo">
+        <i class="fas fa-stethoscope logo-icon"></i>
+        MediZoom
+      </a>
+      <nav class="nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#about" class="nav-link">About</a>
+        <a href="#contact" class="nav-link">Contact</a>
+      </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-content">
+        <h1 class="hero-title">
+          Professional <span>Medical Video</span> Consultations
+        </h1>
+        <p class="hero-subtitle">
+          Secure, HIPAA-compliant video consultations with AI-powered diagnostic tools. 
+          Connect with patients and colleagues seamlessly from anywhere in the world.
+        </p>
+
+        <div class="action-buttons">
+          <a href="index.html" class="btn-join">
+            <i class="fas fa-video"></i>
+            Join Meeting
+          </a>
+          <button onclick="showAuthModal()" class="btn-create">
+            <i class="fas fa-plus"></i>
+            Host Meeting
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="auth-modal">
+      <div class="auth-content">
+        <button class="close-auth" onclick="closeAuthModal()">×</button>
+        
+        <div class="auth-header">
+          <h2 class="auth-title">Host a Meeting</h2>
+          <p class="auth-subtitle">Please sign in to create and host meetings</p>
+        </div>
+
+        <div class="auth-options">
+          <button class="auth-btn login" onclick="redirectToLogin()">
+            <i class="fas fa-sign-in-alt"></i>
+            Login to Your Account
+          </button>
+          <button class="auth-btn" onclick="redirectToSignup()">
+            <i class="fas fa-user-plus"></i>
+            Create New Account
+          </button>
+        </div>
+
+        <p class="auth-footer">
+          Secure authentication required for meeting hosting
+        </p>
+      </div>
+    </div>
+
+    <!-- Features Section -->
+    <section id="features" class="features-section">
+      <h2 class="section-title">Built for Healthcare Excellence</h2>
+      
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-shield-alt"></i>
+          </div>
+          <h3 class="feature-title">HIPAA Compliant</h3>
+          <p class="feature-description">
+            End-to-end encrypted video calls with full HIPAA compliance to ensure 
+            patient data privacy and security.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-robot"></i>
+          </div>
+          <h3 class="feature-title">AI Diagnostics</h3>
+          <p class="feature-description">
+            Advanced AI analysis of medical images with instant results and 
+            detailed diagnostic reports.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-draw-polygon"></i>
+          </div>
+          <h3 class="feature-title">Medical Annotations</h3>
+          <p class="feature-description">
+            Collaborative annotation tools for marking up medical images 
+            during live consultations.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-user-md"></i>
+          </div>
+          <h3 class="feature-title">Multi-Doctor Consult</h3>
+          <p class="feature-description">
+            Host collaborative sessions with multiple healthcare professionals 
+            for comprehensive patient care.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-file-medical"></i>
+          </div>
+          <h3 class="feature-title">Medical Reports</h3>
+          <p class="feature-description">
+            Generate comprehensive medical reports and maintain detailed 
+            consultation records.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-comments"></i>
+          </div>
+          <h3 class="feature-title">Secure Messaging</h3>
+          <p class="feature-description">
+            Encrypted real-time chat for secure communication and file sharing 
+            during consultations.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+      <p class="footer-text">
+        Secure medical video consultations powered by AI • HIPAA Compliant • Enterprise Ready
+      </p>
+      <div class="action-buttons">
+        <button onclick="showAuthModal()" class="btn-join" style="min-width: 200px;">
+          <i class="fas fa-rocket"></i>
+          Get Started
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // Auth Modal Functions
+    function showAuthModal() {
+      document.getElementById('authModal').style.display = 'flex';
+    }
+
+    function closeAuthModal() {
+      document.getElementById('authModal').style.display = 'none';
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('authModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeAuthModal();
+      }
+    });
+
+    // Redirect Functions - Update these URLs with your actual auth pages
+    function redirectToLogin() {
+      // Replace with your actual login page URL
+      window.location.href = 'http://localhost:3001/login.html';
+      // For production: window.location.href = 'https://yourauthdomain.com/login';
+    }
+
+    function redirectToSignup() {
+      // Replace with your actual signup page URL
+      window.location.href = 'http://localhost:3001/signup.html';
+      // For production: window.location.href = 'https://yourauthdomain.com/signup';
+    }
+
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+
+    // Escape key to close modal
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeAuthModal();
+      }
+    });
+  </script>
+</body>
+</html>

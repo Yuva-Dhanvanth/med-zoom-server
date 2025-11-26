@@ -72,12 +72,15 @@
     </div>
   </div>
 
-  <!-- AI Analysis Popup -->
+<!-- AI Analysis Popup -->
 <div id="aiPopup" class="popup-overlay">
-  <div class="popup-content">
-    <div class="popup-header">
+  <div id="aiPopupContent" class="popup-content resizable-draggable">
+    <div class="popup-header drag-handle">
       <h2>🩺 Medical Image Analysis</h2>
-      <button id="closeAIPopup" class="btn close-btn">×</button>
+      <div class="popup-controls">
+        <button id="expandPopup" class="btn popup-control-btn" title="Expand">⛶</button>
+        <button id="closeAIPopup" class="btn close-btn">×</button>
+      </div>
     </div>
     
     <div class="popup-body">
@@ -97,16 +100,79 @@
 
       <!-- Analysis Results Section -->
       <div id="analysisResults" style="display: none;">
-        <!-- Image Preview -->
-        <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
-        
+        <!-- Image and Canvas Container -->
+        <div class="image-canvas-container">
+          <div class="canvas-wrapper">
+            <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
+            <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Annotation Tools -->
+        <div class="annotation-tools">
+          <div class="tools-header">
+            <h4>🖌️ Annotation Tools</h4>
+            <div class="user-color-indicator">
+              Your color: <span id="userColorBadge" class="color-badge"></span>
+            </div>
+          </div>
+          
+          <div class="tools-row">
+            <!-- Drawing Tools -->
+            <div class="tool-group">
+              <button class="tool-btn active" data-tool="pen" title="Pen">
+                ✏️
+              </button>
+              <button class="tool-btn" data-tool="eraser" title="Eraser">
+                🧹
+              </button>
+              <button class="tool-btn" data-tool="highlighter" title="Highlighter">
+                🖍️
+              </button>
+            </div>
+
+            <!-- Shapes -->
+            <div class="tool-group">
+              <button class="tool-btn" data-tool="circle" title="Circle">
+                ⭕
+              </button>
+              <button class="tool-btn" data-tool="rectangle" title="Rectangle">
+                ⬜
+              </button>
+              <button class="tool-btn" data-tool="arrow" title="Arrow">
+                ➡️
+              </button>
+            </div>
+
+            <!-- Colors & Size -->
+            <div class="tool-group">
+              <input type="color" id="colorPicker" value="#4CAF50" title="Color">
+              <input type="range" id="brushSize" min="1" max="20" value="3" title="Brush Size">
+              <span id="brushSizeValue">3px</span>
+            </div>
+
+            <!-- Actions -->
+            <div class="tool-group">
+              <button id="clearCanvas" class="tool-btn danger" title="Clear All">
+                🗑️
+              </button>
+              <button id="undoDrawing" class="tool-btn" title="Undo">
+                ↩️
+              </button>
+            </div>
+          </div>
+
+          <!-- User Indicators -->
+          <div id="userIndicators" class="user-indicators"></div>
+        </div>
+
         <!-- AI Analysis Result -->
         <div id="aiResult" class="ai-result"></div>
         
         <!-- Report AI Button -->
         <div class="report-ai-section">
           <button id="generateReportBtn" class="btn primary-btn report-btn">
-            📋 Generate AI Report
+            📋 Generate AI Report (Gemini)
           </button>
           <div id="reportLoading" class="report-loading" style="display: none;">
             ⏳ AI is generating medical report...
@@ -116,7 +182,7 @@
       </div>
     </div>
   </div>
-</div>  
+</div>
 
   <!-- Participants Popup -->
   <div id="participantsPopup" class="popup-overlay">
