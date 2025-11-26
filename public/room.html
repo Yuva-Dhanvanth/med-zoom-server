@@ -73,33 +73,50 @@
   </div>
 
   <!-- AI Analysis Popup -->
-  <div id="aiPopup" class="popup-overlay">
-    <div class="popup-content">
-      <div class="popup-header">
-        <h2>🩺 Medical Image Analysis</h2>
-        <button id="closeAIPopup" class="btn close-btn">×</button>
-      </div>
-      
-      <div class="popup-body">
-        <form id="aiForm" class="ai-form">
-          <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
-          <input
-            id="aiFile"
-            type="file"
-            name="file"
-            accept="image/*"
-            class="input"
-          />
-          <button type="submit" class="btn primary-btn">
-            Upload & Analyze
-          </button>
-        </form>
+<div id="aiPopup" class="popup-overlay">
+  <div class="popup-content">
+    <div class="popup-header">
+      <h2>🩺 Medical Image Analysis</h2>
+      <button id="closeAIPopup" class="btn close-btn">×</button>
+    </div>
+    
+    <div class="popup-body">
+      <form id="aiForm" class="ai-form">
+        <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
+        <input
+          id="aiFile"
+          type="file"
+          name="file"
+          accept="image/*"
+          class="input"
+        />
+        <button type="submit" class="btn primary-btn">
+          Upload & Analyze
+        </button>
+      </form>
 
-        <div id="aiResult" class="ai-result"></div>
+      <!-- Analysis Results Section -->
+      <div id="analysisResults" style="display: none;">
+        <!-- Image Preview -->
         <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
+        
+        <!-- AI Analysis Result -->
+        <div id="aiResult" class="ai-result"></div>
+        
+        <!-- Report AI Button -->
+        <div class="report-ai-section">
+          <button id="generateReportBtn" class="btn primary-btn report-btn">
+            📋 Generate AI Report
+          </button>
+          <div id="reportLoading" class="report-loading" style="display: none;">
+            ⏳ AI is generating medical report...
+          </div>
+          <div id="reportResult" class="ai-report-result"></div>
+        </div>
       </div>
     </div>
   </div>
+</div>  
 
   <!-- Participants Popup -->
   <div id="participantsPopup" class="popup-overlay">

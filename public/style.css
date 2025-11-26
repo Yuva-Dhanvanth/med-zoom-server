@@ -1089,3 +1089,39 @@ body {
 .participants-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* Report AI Section */
+.report-ai-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.report-btn {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.ai-report-result {
+  background: rgba(5, 5, 15, 0.6);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  border-left: 4px solid var(--accent);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.report-loading {
+  text-align: center;
+  color: var(--accent);
+  padding: 12px;
+  font-style: italic;
+}
+
+.report-error {
+  background: rgba(255, 75, 92, 0.1);
+  border-left-color: var(--danger);
+  color: var(--danger);
+}

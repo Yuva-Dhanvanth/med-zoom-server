@@ -155,6 +155,18 @@ function registerSocketEvents() {
     showNotification("You are now the host");
   });
 
+  // AI Report Updates
+socket.on("ai-report-update", ({ report, userName }) => {
+  if (userName !== username) { // Don't show if it's our own report
+    const reportResult = document.getElementById("reportResult");
+    reportResult.innerHTML = `
+      <div class="shared-by">AI Medical Report (by ${userName})</div>
+      <div>${report}</div>
+    `;
+    reportResult.className = "ai-report-result";
+  }
+});
+
   socket.on("host-changed", ({ newHostId }) => {
     if (newHostId === socket.id) {
       isHost = true;
@@ -523,20 +535,21 @@ function updateVideoLabels() {
   }
 }
 
-// ===============================
-//   AI COLLABORATION
-// ===============================
 function setupAICollaboration() {
   const aiForm = document.getElementById("aiForm");
   const aiFile = document.getElementById("aiFile");
-  const aiResult = document.getElementById("aiResult");
-  const aiImagePreview = document.getElementById("aiImagePreview");
+  const analysisResults = document.getElementById("analysisResults");
+  const generateReportBtn = document.getElementById("generateReportBtn");
+  const reportLoading = document.getElementById("reportLoading");
+  const reportResult = document.getElementById("reportResult");
+
+  let currentImageData = null;
 
   aiForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const file = aiFile.files[0];
     if (!file) {
-      aiResult.textContent = "Please choose an image file.";
+      document.getElementById("aiResult").textContent = "Please choose an image file.";
       return;
     }
 
@@ -546,15 +559,19 @@ function setupAICollaboration() {
       userName: username
     });
 
-    // Convert to data URL for preview and sharing
     const reader = new FileReader();
     reader.onload = async function(e) {
-      const imageData = e.target.result;
+      currentImageData = e.target.result; // Store for report generation
       
-      // Show local preview immediately
-      aiImagePreview.src = imageData;
+      // Show image preview
+      const aiImagePreview = document.getElementById("aiImagePreview");
+      aiImagePreview.src = currentImageData;
       aiImagePreview.style.display = "block";
-      aiResult.textContent = "Analyzing medical image...";
+      
+      // Show analysis results section
+      analysisResults.style.display = "block";
+      
+      document.getElementById("aiResult").textContent = "Analyzing medical image...";
 
       try {
         const formData = new FormData();
@@ -572,16 +589,20 @@ function setupAICollaboration() {
         if (!data?.prediction) throw new Error("Invalid response from AI server");
 
         // Show results
-        aiResult.innerHTML = `
+        document.getElementById("aiResult").innerHTML = `
           <div class="shared-by">Shared by: You</div>
           <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
           <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
         `;
 
+        // Reset report section
+        reportResult.innerHTML = "";
+        reportLoading.style.display = "none";
+
         // Broadcast to all participants
         socket.emit("ai-analysis-result", {
           roomId: roomId,
-          imageData: imageData,
+          imageData: currentImageData,
           prediction: data.prediction,
           confidence: data.confidence,
           userName: username
@@ -589,9 +610,8 @@ function setupAICollaboration() {
 
       } catch (err) {
         console.error("AI analysis failed:", err);
-        aiResult.textContent = "Error processing image. Please try again.";
+        document.getElementById("aiResult").textContent = "Error processing image. Please try again.";
         
-        // Notify everyone about the error
         socket.emit("ai-analysis-error", {
           roomId: roomId,
           userName: username,
@@ -601,6 +621,66 @@ function setupAICollaboration() {
     };
     reader.readAsDataURL(file);
   });
+
+  // Report AI Button Handler
+  generateReportBtn.addEventListener("click", async () => {
+    if (!currentImageData) {
+      alert("Please analyze an image first.");
+      return;
+    }
+
+    reportLoading.style.display = "block";
+    reportResult.innerHTML = "";
+    generateReportBtn.disabled = true;
+
+    try {
+      // Generate AI report using Gemini API
+      const report = await generateAIMedicalReport(currentImageData);
+      
+      reportResult.innerHTML = `
+        <div class="shared-by">AI Medical Report</div>
+        <div>${report}</div>
+      `;
+      reportResult.className = "ai-report-result";
+
+      // Broadcast report to all participants
+      socket.emit("ai-report-generated", {
+        roomId: roomId,
+        report: report,
+        userName: username
+      });
+
+    } catch (error) {
+      console.error("Report generation failed:", error);
+      reportResult.innerHTML = "❌ Failed to generate report. Please try again.";
+      reportResult.className = "ai-report-result report-error";
+    } finally {
+      reportLoading.style.display = "none";
+      generateReportBtn.disabled = false;
+    }
+  });
+}
+
+// AI Report Generation Function
+async function generateAIMedicalReport(imageData) {
+  // For now, using mock reports - replace with actual Gemini API
+  const mockReports = [
+    "Chest X-ray shows clear lung fields with no evidence of consolidation or pleural effusion. The cardiomediastinal silhouette is within normal limits. No pneumothorax or focal opacities identified.",
+    
+    "Radiograph demonstrates mild peribronchial thickening with minimal hazy opacities in the lower lung zones. Heart size appears normal. Bony structures are intact without acute fracture.",
+    
+    "CT scan reveals bilateral ground-glass opacities predominantly in the peripheral lung zones. Mild interstitial thickening noted. No significant lymphadenopathy or pleural effusion.",
+    
+    "X-ray shows normal pulmonary vasculature and clear costophrenic angles. Diaphragmatic contours are smooth. No evidence of active pulmonary disease process.",
+    
+    "Imaging demonstrates patchy airspace opacities in the right middle and lower lobes. Small pleural effusion noted. Clinical correlation recommended for possible infectious process."
+  ];
+
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // Return random mock report
+  return mockReports[Math.floor(Math.random() * mockReports.length)];
 }
 
 function updateAIDisplay(imageData, prediction, confidence, userName) {
