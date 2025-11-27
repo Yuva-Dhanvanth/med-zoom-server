@@ -3,7 +3,7 @@
 // ===============================
 
 // CONFIGURATION - CHANGE THIS URL WHEN NGROK RESTARTS
-const AI_SERVER_URL =  "http://127.0.0.1:5000" ;
+const AI_SERVER_URL = "http://127.0.0.1:5000";
 
 let socket = null;
 let localStream = null;
@@ -11,9 +11,11 @@ let peers = {};
 let remoteVideoElements = {};
 let roomId = null;
 let username = null;
-let isPopupInitiator = false;
 let isHost = false;
 let participants = {};
+let annotationTool = null;
+let userColors = {};
+let currentImageData = null;
 
 // ICE servers
 const iceServers = {
@@ -76,8 +78,7 @@ async function initRoomPage() {
   await initLocalMedia();
   socket.emit("join-room", { roomId, name: username });
   setupControls();
-  setupPopups();
-  setupAICollaboration();
+  setupAIIntegration();
 }
 
 // ===============================
@@ -156,31 +157,31 @@ function registerSocketEvents() {
   });
 
   // Drawing events
-socket.on("drawing-action", (data) => {
-  if (annotationTool && data.userId !== socket.id) {
-    annotationTool.handleRemoteDrawing(data);
-    
-    // Update user colors if new user
-    if (!userColors[data.userId]) {
-      userColors[data.userId] = data.data.color || '#4CAF50';
-      if (annotationTool.updateUserIndicators) {
-        annotationTool.updateUserIndicators();
+  socket.on("drawing-action", (data) => {
+    if (annotationTool && data.userId !== socket.id) {
+      annotationTool.handleRemoteDrawing(data);
+      
+      // Update user colors if new user
+      if (!userColors[data.userId]) {
+        userColors[data.userId] = data.data.color || '#4CAF50';
+        if (annotationTool.updateUserIndicators) {
+          annotationTool.updateUserIndicators();
+        }
       }
     }
-  }
-});
+  });
 
   // AI Report Updates
-socket.on("ai-report-update", ({ report, userName }) => {
-  if (userName !== username) { // Don't show if it's our own report
-    const reportResult = document.getElementById("reportResult");
-    reportResult.innerHTML = `
-      <div class="shared-by">AI Medical Report (by ${userName})</div>
-      <div>${report}</div>
-    `;
-    reportResult.className = "ai-report-result";
-  }
-});
+  socket.on("ai-report-update", ({ report, userName }) => {
+    if (userName !== username) { // Don't show if it's our own report
+      const reportResult = document.getElementById("reportResult");
+      reportResult.innerHTML = `
+        <div class="shared-by">AI Medical Report (by ${userName})</div>
+        <div>${report}</div>
+      `;
+      reportResult.className = "ai-report-result";
+    }
+  });
 
   socket.on("host-changed", ({ newHostId }) => {
     if (newHostId === socket.id) {
@@ -270,26 +271,15 @@ socket.on("ai-report-update", ({ report, userName }) => {
     addChatMessage("System", `${userName} shared a medical image analysis: ${prediction} (${(confidence * 100).toFixed(1)}%)`);
   });
 
-  // SHARED POPUP EVENTS
-  socket.on("ai-popup-opened", ({ userName }) => {
-    console.log(`📢 ${userName} opened AI popup`);
-    openAIPopupAsViewer(userName);
-  });
-
-  socket.on("ai-popup-closed", ({ userName }) => {
-    console.log(`📢 ${userName} closed AI popup`);
-    closeAIPopupAsViewer();
-  });
-
   // AI ANALYSIS STATUS
   socket.on("ai-analysis-status", ({ userName, status, message }) => {
     const aiResult = document.getElementById("aiResult");
     if (aiResult && status === "analyzing") {
       aiResult.innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); padding: 20px;">
-          <div style="font-size: 2rem; margin-bottom: 10px;">🔬</div>
+        <div style="text-align: center; color: var(--text-muted); padding: 10px;">
+          <div style="font-size: 1.5rem; margin-bottom: 8px;">🔬</div>
           <div><strong>${userName}</strong> is analyzing a medical image</div>
-          <div style="font-size: 0.9rem; margin-top: 8px;">${message}</div>
+          <div style="font-size: 0.8rem; margin-top: 6px;">${message}</div>
         </div>
       `;
     }
@@ -301,14 +291,9 @@ socket.on("ai-report-update", ({ report, userName }) => {
 // ===============================
 function updateHostUI() {
   const hostBadge = document.getElementById("hostBadge");
-  const participantsList = document.getElementById("participantsList");
   
   if (hostBadge) {
     hostBadge.style.display = isHost ? "inline-block" : "none";
-  }
-  
-  if (participantsList) {
-    participantsList.innerHTML = generateParticipantsListHTML();
   }
 }
 
@@ -399,16 +384,12 @@ function showNotification(message) {
 }
 
 // ===============================
-//   POPUP MANAGEMENT
+//   PARTICIPANTS POPUP
 // ===============================
-function setupPopups() {
+function setupControls() {
   const btnParticipants = document.getElementById("btnParticipants");
-  const btnAskAI = document.getElementById("btnAskAI");
   const closeParticipantsPopup = document.getElementById("closeParticipantsPopup");
-  const closeAIPopup = document.getElementById("closeAIPopup");
   const participantsPopup = document.getElementById("participantsPopup");
-  const aiPopup = document.getElementById("aiPopup");
-  const aiForm = document.getElementById("aiForm");
 
   // Participants popup
   btnParticipants.addEventListener("click", () => {
@@ -419,109 +400,86 @@ function setupPopups() {
     participantsPopup.style.display = "none";
   });
 
-  // AI popup (shared with everyone)
-  btnAskAI.addEventListener("click", () => {
-    openAIPopupAsInitiator();
-  });
-
-  closeAIPopup.addEventListener("click", () => {
-    if (isPopupInitiator) {
-      closeAIPopupAsInitiator();
-    } else {
-      closeAIPopupAsViewer();
+  // Close popup when clicking outside
+  participantsPopup.addEventListener("click", (e) => {
+    if (e.target === participantsPopup) {
+      participantsPopup.style.display = "none";
     }
   });
 
-  // Close popups when clicking outside
-  [participantsPopup, aiPopup].forEach(popup => {
-    popup.addEventListener("click", (e) => {
-      if (e.target === popup) {
-        if (popup === aiPopup) {
-          if (isPopupInitiator) {
-            closeAIPopupAsInitiator();
-          } else {
-            closeAIPopupAsViewer();
-          }
-        } else {
-          popup.style.display = "none";
+  // Media controls
+  setupMediaControls();
+}
+
+function setupMediaControls() {
+  const btnMic = document.getElementById("btnToggleMic");
+  const btnCam = document.getElementById("btnToggleCamera");
+  const btnScreen = document.getElementById("btnShareScreen");
+  const btnLeave = document.getElementById("btnLeave");
+
+  if (btnMic) {
+    btnMic.addEventListener("click", () => {
+      const audioTrack = localStream?.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        btnMic.textContent = audioTrack.enabled ? "🎙️ Mute" : "🔇 Unmute";
+        
+        // Update participant state
+        if (participants[socket.id]) {
+          participants[socket.id].isMuted = !audioTrack.enabled;
         }
       }
     });
-  });
-}
-
-function openAIPopupAsInitiator() {
-  const aiPopup = document.getElementById("aiPopup");
-  const aiForm = document.getElementById("aiForm");
-  
-  isPopupInitiator = true;
-  aiPopup.style.display = "flex";
-  
-  // Show upload form for initiator
-  if (aiForm) aiForm.style.display = "block";
-  
-  // Reset form
-  document.getElementById("aiFile").value = "";
-  document.getElementById("aiResult").textContent = "";
-  document.getElementById("aiImagePreview").style.display = "none";
-  
-  // Notify everyone that AI popup was opened
-  socket.emit("open-ai-popup", {
-    roomId: roomId,
-    userName: username
-  });
-}
-
-function openAIPopupAsViewer(userName) {
-  const aiPopup = document.getElementById("aiPopup");
-  const aiForm = document.getElementById("aiForm");
-  const aiResult = document.getElementById("aiResult");
-  
-  isPopupInitiator = false;
-  aiPopup.style.display = "flex";
-  
-  // Hide upload form for viewers
-  if (aiForm) aiForm.style.display = "none";
-  
-  // Show viewer message
-  if (aiResult) {
-    aiResult.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); padding: 20px;">
-        <div style="font-size: 2rem; margin-bottom: 10px;">🩺</div>
-        <div><strong>${userName}</strong> is analyzing a medical image</div>
-        <div style="font-size: 0.9rem; margin-top: 8px;">Waiting for analysis results...</div>
-      </div>
-    `;
   }
-  
-  // Clear any previous image
-  const aiImagePreview = document.getElementById("aiImagePreview");
-  if (aiImagePreview) {
-    aiImagePreview.style.display = "none";
-    aiImagePreview.src = "";
+
+  if (btnCam) {
+    btnCam.addEventListener("click", () => {
+      const videoTrack = localStream?.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        btnCam.textContent = videoTrack.enabled ? "📷 Camera Off" : "📷 Camera On";
+        
+        // Update participant state
+        if (participants[socket.id]) {
+          participants[socket.id].isVideoOn = videoTrack.enabled;
+        }
+      }
+    });
   }
-}
 
-function closeAIPopupAsInitiator() {
-  const aiPopup = document.getElementById("aiPopup");
-  aiPopup.style.display = "none";
-  
-  // Reset state
-  isPopupInitiator = false;
-  
-  // Notify everyone that AI popup was closed
-  socket.emit("close-ai-popup", {
-    roomId: roomId,
-    userName: username
-  });
-}
+  if (btnScreen) {
+    btnScreen.addEventListener("click", async () => {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
 
-function closeAIPopupAsViewer() {
-  const aiPopup = document.getElementById("aiPopup");
-  aiPopup.style.display = "none";
-  
-  // Only reset local state, don't broadcast
-  isPopupInitiator = false;
+        // Replace video track for all peers
+        for (const id in peers) {
+          const sender = peers[id].getSenders().find(s => s.track?.kind === "video");
+          if (sender) sender.replaceTrack(screenTrack);
+        }
+
+        // Revert to camera when screen sharing stops
+        screenTrack.onended = () => {
+          const cameraTrack = localStream?.getVideoTracks()[0];
+          for (const id in peers) {
+            const sender = peers[id].getSenders().find(s => s.track?.kind === "video");
+            if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
+          }
+        };
+      } catch (err) {
+        console.error("Screen share error:", err);
+      }
+    });
+  }
+
+  if (btnLeave) {
+    btnLeave.addEventListener("click", () => {
+      if (socket) socket.disconnect();
+      if (localStream) localStream.getTracks().forEach(track => track.stop());
+      window.location.href = "index.html";
+    });
+  }
 }
 
 function updateParticipantsList(updatedParticipants) {
@@ -550,26 +508,175 @@ function updateVideoLabels() {
   }
 }
 
-function setupAICollaboration() {
+// ===============================
+//   INTEGRATED AI + CHAT
+// ===============================
+function setupAIIntegration() {
   const aiForm = document.getElementById("aiForm");
   const aiFile = document.getElementById("aiFile");
   const analysisResults = document.getElementById("analysisResults");
   const generateReportBtn = document.getElementById("generateReportBtn");
   const reportLoading = document.getElementById("reportLoading");
   const reportResult = document.getElementById("reportResult");
-  const expandPopupBtn = document.getElementById("expandPopup");
 
-  let currentImageData = null;
-  let annotationTool = null;
-  const userColors = {};
-  let popupState = {
-    isExpanded: false,
-    position: { x: 0, y: 0 },
-    size: { width: '500px', height: '400px' }
-  };
+  // Initialize annotation tools
+  initAnnotationTools();
+  setupAnnotationToolEvents();
 
-  // ==================== ANNOTATION TOOLS ====================
-  class AnnotationTool {
+  // ==================== AI FORM HANDLER ====================
+  aiForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const file = aiFile.files[0];
+    if (!file) {
+      const aiResult = document.getElementById("aiResult");
+      if (aiResult) {
+        aiResult.textContent = "Please choose an image file.";
+      }
+      return;
+    }
+
+    socket.emit("ai-analysis-start", {
+      roomId: roomId,
+      userName: username
+    });
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      currentImageData = e.target.result;
+      
+      const aiImagePreview = document.getElementById("aiImagePreview");
+      if (aiImagePreview) {
+        aiImagePreview.src = currentImageData;
+        aiImagePreview.style.display = "block";
+      }
+      
+      if (analysisResults) {
+        analysisResults.style.display = "block";
+      }
+      
+      // Initialize annotation tools after image loads
+      if (aiImagePreview) {
+        aiImagePreview.onload = function() {
+          if (annotationTool) {
+            annotationTool.resizeCanvasToImage();
+          }
+        };
+      }
+      
+      const aiResult = document.getElementById("aiResult");
+      if (aiResult) {
+        aiResult.textContent = "Analyzing medical image...";
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(`${AI_SERVER_URL}/predict`, {
+          method: "POST",
+          body: formData,
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        
+        const data = await res.json();
+        if (!data?.prediction) throw new Error("Invalid response from AI server");
+
+        if (aiResult) {
+          aiResult.innerHTML = `
+            <div class="shared-by">Shared by: You</div>
+            <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
+            <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
+          `;
+        }
+
+        saveAnalysisResults(currentImageData, data.prediction, data.confidence);
+
+        if (reportResult) {
+          reportResult.innerHTML = "";
+        }
+        if (reportLoading) {
+          reportLoading.style.display = "none";
+        }
+
+        socket.emit("ai-analysis-result", {
+          roomId: roomId,
+          imageData: currentImageData,
+          prediction: data.prediction,
+          confidence: data.confidence,
+          userName: username
+        });
+
+      } catch (err) {
+        console.error("AI analysis failed:", err);
+        const aiResult = document.getElementById("aiResult");
+        if (aiResult) {
+          aiResult.textContent = "Error processing image. Please try again.";
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ==================== REPORT AI BUTTON HANDLER ====================
+  generateReportBtn.addEventListener("click", async () => {
+    if (!currentImageData) {
+      alert("Please analyze an image first.");
+      return;
+    }
+
+    if (reportLoading) reportLoading.style.display = "block";
+    if (reportResult) reportResult.innerHTML = "";
+    generateReportBtn.disabled = true;
+
+    try {
+      const report = await generateAIMedicalReport(currentImageData);
+      
+      if (reportResult) {
+        reportResult.innerHTML = `
+          <div class="shared-by">AI Medical Report</div>
+          <div>${report}</div>
+        `;
+        reportResult.className = "ai-report-result";
+      }
+
+      socket.emit("ai-report-generated", {
+        roomId: roomId,
+        report: report,
+        userName: username
+      });
+
+    } catch (error) {
+      console.error("Report generation failed:", error);
+      if (reportResult) {
+        reportResult.innerHTML = "❌ Failed to generate report. Please try again.";
+        reportResult.className = "ai-report-result report-error";
+      }
+    } finally {
+      if (reportLoading) reportLoading.style.display = "none";
+      generateReportBtn.disabled = false;
+    }
+  });
+
+  // ==================== CHAT HANDLER ====================
+  const chatForm = document.getElementById("chatForm");
+  const chatInput = document.getElementById("chatInput");
+
+  if (chatForm) {
+    chatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const msg = chatInput.value.trim();
+      if (!msg) return;
+      socket.emit("chat-message", { roomId, message: msg, name: username });
+      addChatMessage("You", msg);
+      chatInput.value = "";
+    });
+  }
+}
+
+// ==================== ANNOTATION TOOLS ====================
+class AnnotationTool {
   constructor() {
     this.canvas = document.getElementById('annotationCanvas');
     this.ctx = this.canvas.getContext('2d');
@@ -972,395 +1079,97 @@ function setupAICollaboration() {
   }
 }
 
-
-  function broadcastDrawingAction(action, data) {
-    if (socket) {
-      socket.emit('drawing-action', {
-        roomId: roomId,
-        action: action,
-        data: data,
-        userId: socket.id,
-        userName: username
-      });
-    }
+function initAnnotationTools() {
+  if (!annotationTool) {
+    annotationTool = new AnnotationTool();
   }
-
-  // Initialize annotation tools
-  function initAnnotationTools() {
-    if (!annotationTool) {
-      annotationTool = new AnnotationTool();
-    }
-  }
-
-  // Setup tool events
-  function setupAnnotationToolEvents() {
-    // Tool buttons
-    document.querySelectorAll('.tool-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        if (annotationTool) {
-          annotationTool.setTool(e.target.dataset.tool);
-        }
-      });
-    });
-
-    // Color picker
-    const colorPicker = document.getElementById('colorPicker');
-    if (colorPicker) {
-      colorPicker.addEventListener('change', (e) => {
-        if (annotationTool) {
-          annotationTool.setColor(e.target.value);
-        }
-      });
-    }
-
-    // Brush size
-    const brushSize = document.getElementById('brushSize');
-    const brushSizeValue = document.getElementById('brushSizeValue');
-    if (brushSize && brushSizeValue) {
-      brushSize.addEventListener('input', (e) => {
-        if (annotationTool) {
-          annotationTool.setBrushSize(e.target.value);
-          brushSizeValue.textContent = e.target.value + 'px';
-        }
-      });
-    }
-
-    // Clear canvas
-    const clearCanvas = document.getElementById('clearCanvas');
-    if (clearCanvas) {
-      clearCanvas.addEventListener('click', () => {
-        if (annotationTool && confirm('Clear all drawings?')) {
-          annotationTool.clearCanvas();
-          broadcastDrawingAction('clear', {});
-        }
-      });
-    }
-
-    // Undo button - FIXED
-    const undoDrawing = document.getElementById('undoDrawing');
-    if (undoDrawing) {
-      undoDrawing.addEventListener('click', () => {
-    if (annotationTool) {
-      annotationTool.undo();
-    }
-  });
 }
+
+function setupAnnotationToolEvents() {
+  // Tool buttons
+  document.querySelectorAll('.tool-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      if (annotationTool) {
+        annotationTool.setTool(e.target.dataset.tool);
+      }
+    });
+  });
+
+  // Color picker
+  const colorPicker = document.getElementById('colorPicker');
+  if (colorPicker) {
+    colorPicker.addEventListener('change', (e) => {
+      if (annotationTool) {
+        annotationTool.setColor(e.target.value);
+      }
+    });
   }
 
-  // ==================== POPUP CONTROLS ====================
-  function initPopupControls() {
-    const popupContent = document.getElementById('aiPopupContent');
-    const dragHandle = document.querySelector('.drag-handle');
-    
-    if (!popupContent || !dragHandle) return;
-    
-    let isDragging = false;
-    let dragOffset = { x: 0, y: 0 };
-
-    dragHandle.addEventListener('mousedown', startDrag);
-    document.addEventListener('mousemove', drag);
-    document.addEventListener('mouseup', stopDrag);
-
-    function startDrag(e) {
-      if (e.target.closest('.popup-controls')) return;
-      isDragging = true;
-      const rect = popupContent.getBoundingClientRect();
-      dragOffset.x = e.clientX - rect.left;
-      dragOffset.y = e.clientY - rect.top;
-      popupContent.style.cursor = 'grabbing';
-    }
-
-    function drag(e) {
-      if (!isDragging) return;
-      popupContent.style.left = (e.clientX - dragOffset.x) + 'px';
-      popupContent.style.top = (e.clientY - dragOffset.y) + 'px';
-    }
-
-    function stopDrag() {
-      isDragging = false;
-      popupContent.style.cursor = 'default';
-    }
-
-    // Expand button
-    if (expandPopupBtn) {
-      expandPopupBtn.addEventListener('click', toggleExpand);
-    }
+  // Brush size
+  const brushSize = document.getElementById('brushSize');
+  const brushSizeValue = document.getElementById('brushSizeValue');
+  if (brushSize && brushSizeValue) {
+    brushSize.addEventListener('input', (e) => {
+      if (annotationTool) {
+        annotationTool.setBrushSize(e.target.value);
+        brushSizeValue.textContent = e.target.value + 'px';
+      }
+    });
   }
 
-  function toggleExpand() {
-    const popupContent = document.getElementById('aiPopupContent');
-    if (!popupContent) return;
-    
-    popupState.isExpanded = !popupState.isExpanded;
-    
-    if (popupState.isExpanded) {
-      popupState.position = {
-        x: popupContent.style.left,
-        y: popupContent.style.top
-      };
-      popupState.size = {
-        width: popupContent.style.width,
-        height: popupContent.style.height
-      };
-      
-      popupContent.style.width = '90vw';
-      popupContent.style.height = '90vh';
-      popupContent.style.left = '5vw';
-      popupContent.style.top = '5vh';
-      expandPopupBtn.textContent = '⛶';
-    } else {
-      popupContent.style.width = popupState.size.width || '500px';
-      popupContent.style.height = popupState.size.height || '400px';
-      popupContent.style.left = popupState.position.x;
-      popupContent.style.top = popupState.position.y;
-      expandPopupBtn.textContent = '⛶';
-    }
+  // Clear canvas
+  const clearCanvas = document.getElementById('clearCanvas');
+  if (clearCanvas) {
+    clearCanvas.addEventListener('click', () => {
+      if (annotationTool && confirm('Clear all drawings?')) {
+        annotationTool.clearCanvas();
+        broadcastDrawingAction('clear', {});
+      }
+    });
   }
 
-  // ==================== STATE MANAGEMENT ====================
-  function savePopupState() {
-    const popupContent = document.getElementById('aiPopupContent');
-    if (!popupContent) return;
-    
-    localStorage.setItem('aiPopupState', JSON.stringify({
-      isExpanded: popupState.isExpanded,
-      position: { 
-        x: popupContent.style.left, 
-        y: popupContent.style.top 
-      },
-      size: { 
-        width: popupContent.style.width, 
-        height: popupContent.style.height 
+  // Undo button
+  const undoDrawing = document.getElementById('undoDrawing');
+  if (undoDrawing) {
+    undoDrawing.addEventListener('click', () => {
+      if (annotationTool) {
+        annotationTool.undo();
       }
-    }));
+    });
   }
+}
 
-  function loadPopupState() {
-    const savedState = localStorage.getItem('aiPopupState');
-    if (savedState) {
-      const state = JSON.parse(savedState);
-      const popupContent = document.getElementById('aiPopupContent');
-      if (!popupContent) return;
-      
-      if (state.position.x && state.position.y) {
-        popupContent.style.left = state.position.x;
-        popupContent.style.top = state.position.y;
-      }
-      
-      if (state.size.width && state.size.height) {
-        popupContent.style.width = state.size.width;
-        popupContent.style.height = state.size.height;
-      }
-      
-      popupState.isExpanded = state.isExpanded;
-      if (expandPopupBtn) {
-        expandPopupBtn.textContent = state.isExpanded ? '⛶' : '⛶';
-      }
-    }
-  }
-
-  function saveAnalysisResults(imageData, prediction, confidence) {
-    localStorage.setItem('lastAnalysis', JSON.stringify({
-      imageData: imageData,
-      prediction: prediction,
-      confidence: confidence,
-      timestamp: Date.now()
-    }));
-  }
-
-  function loadLastAnalysis() {
-    const lastAnalysis = localStorage.getItem('lastAnalysis');
-    if (lastAnalysis) {
-      const analysis = JSON.parse(lastAnalysis);
-      currentImageData = analysis.imageData;
-      
-      if (analysisResults) {
-        analysisResults.style.display = 'block';
-      }
-      
-      const aiImagePreview = document.getElementById('aiImagePreview');
-      if (aiImagePreview) {
-        aiImagePreview.src = currentImageData;
-        aiImagePreview.style.display = 'block';
-      }
-      
-      const aiResult = document.getElementById('aiResult');
-      if (aiResult) {
-        aiResult.innerHTML = `
-          <div class="shared-by">Last Analysis</div>
-          <div><strong>Prediction:</strong> ${escapeHtml(analysis.prediction)}</div>
-          <div><strong>Confidence:</strong> ${analysis.confidence}</div>
-        `;
-      }
-      
-      initAnnotationTools();
-      setTimeout(() => {
-        if (annotationTool) {
-          annotationTool.resizeCanvasToImage();
-        }
-      }, 100);
-    }
-  }
-
-  // ==================== MAIN FORM HANDLER ====================
-  aiForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const file = aiFile.files[0];
-    if (!file) {
-      const aiResult = document.getElementById("aiResult");
-      if (aiResult) {
-        aiResult.textContent = "Please choose an image file.";
-      }
-      return;
-    }
-
-    socket.emit("ai-analysis-start", {
+function broadcastDrawingAction(action, data) {
+  if (socket) {
+    socket.emit('drawing-action', {
       roomId: roomId,
+      action: action,
+      data: data,
+      userId: socket.id,
       userName: username
     });
-
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-      currentImageData = e.target.result;
-      
-      const aiImagePreview = document.getElementById("aiImagePreview");
-      if (aiImagePreview) {
-        aiImagePreview.src = currentImageData;
-        aiImagePreview.style.display = "block";
-      }
-      
-      if (analysisResults) {
-        analysisResults.style.display = "block";
-      }
-      
-      // Initialize annotation tools after image loads
-      if (aiImagePreview) {
-        aiImagePreview.onload = function() {
-          initAnnotationTools();
-          setupAnnotationToolEvents();
-          if (annotationTool) {
-            annotationTool.resizeCanvasToImage();
-          }
-        };
-      }
-      
-      const aiResult = document.getElementById("aiResult");
-      if (aiResult) {
-        aiResult.textContent = "Analyzing medical image...";
-      }
-
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const res = await fetch(`${AI_SERVER_URL}/predict`, {
-          method: "POST",
-          body: formData,
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        });
-
-        if (!res.ok) throw new Error(`Server error: ${res.status}`);
-        
-        const data = await res.json();
-        if (!data?.prediction) throw new Error("Invalid response from AI server");
-
-        if (aiResult) {
-          aiResult.innerHTML = `
-            <div class="shared-by">Shared by: You</div>
-            <div><strong>Prediction:</strong> ${escapeHtml(String(data.prediction))}</div>
-            <div><strong>Confidence:</strong> ${Number(data.confidence).toFixed(4)}</div>
-          `;
-        }
-
-        saveAnalysisResults(currentImageData, data.prediction, data.confidence);
-
-        if (reportResult) {
-          reportResult.innerHTML = "";
-        }
-        if (reportLoading) {
-          reportLoading.style.display = "none";
-        }
-
-        socket.emit("ai-analysis-result", {
-          roomId: roomId,
-          imageData: currentImageData,
-          prediction: data.prediction,
-          confidence: data.confidence,
-          userName: username
-        });
-
-      } catch (err) {
-        console.error("AI analysis failed:", err);
-        const aiResult = document.getElementById("aiResult");
-        if (aiResult) {
-          aiResult.textContent = "Error processing image. Please try again.";
-        }
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // ==================== REPORT AI BUTTON HANDLER ====================
-  generateReportBtn.addEventListener("click", async () => {
-    if (!currentImageData) {
-      alert("Please analyze an image first.");
-      return;
-    }
-
-    if (reportLoading) reportLoading.style.display = "block";
-    if (reportResult) reportResult.innerHTML = "";
-    generateReportBtn.disabled = true;
-
-    try {
-      const report = await generateAIMedicalReport(currentImageData);
-      
-      if (reportResult) {
-        reportResult.innerHTML = `
-          <div class="shared-by">AI Medical Report</div>
-          <div>${report}</div>
-        `;
-        reportResult.className = "ai-report-result";
-      }
-
-      socket.emit("ai-report-generated", {
-        roomId: roomId,
-        report: report,
-        userName: username
-      });
-
-    } catch (error) {
-      console.error("Report generation failed:", error);
-      if (reportResult) {
-        reportResult.innerHTML = "❌ Failed to generate report. Please try again.";
-        reportResult.className = "ai-report-result report-error";
-      }
-    } finally {
-      if (reportLoading) reportLoading.style.display = "none";
-      generateReportBtn.disabled = false;
-    }
-  });
-
-  // ==================== INITIALIZATION ====================
-  initPopupControls();
-
-  // Modified popup handlers
-  const originalOpenAIPopupAsInitiator = window.openAIPopupAsInitiator;
-  window.openAIPopupAsInitiator = function() {
-    originalOpenAIPopupAsInitiator();
-    loadPopupState();
-    loadLastAnalysis();
-  };
-
-  const originalCloseAIPopupAsInitiator = window.closeAIPopupAsInitiator;
-  window.closeAIPopupAsInitiator = function() {
-    savePopupState();
-    originalCloseAIPopupAsInitiator();
-  };
+  }
 }
 
-// ==================== EXTERNAL FUNCTIONS ====================
+// ===============================
+//   CHAT FUNCTIONS
+// ===============================
+function addChatMessage(name, msg) {
+  const chatMessages = document.getElementById("chatMessages");
+  if (!chatMessages) return;
+
+  const div = document.createElement("div");
+  div.className = "chat-msg";
+  div.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${escapeHtml(msg)}`;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// ===============================
+//   AI REPORT GENERATION
+// ===============================
 async function generateAIMedicalReport(imageData) {
   const mockReports = [
     "Chest X-ray shows clear lung fields with no evidence of consolidation or pleural effusion. The cardiomediastinal silhouette is within normal limits. No pneumothorax or focal opacities identified.",
@@ -1377,10 +1186,15 @@ async function generateAIMedicalReport(imageData) {
 function updateAIDisplay(imageData, prediction, confidence, userName) {
   const aiResult = document.getElementById("aiResult");
   const aiImagePreview = document.getElementById("aiImagePreview");
+  const analysisResults = document.getElementById("analysisResults");
 
   if (aiImagePreview) {
     aiImagePreview.src = imageData;
     aiImagePreview.style.display = "block";
+  }
+  
+  if (analysisResults) {
+    analysisResults.style.display = "block";
   }
   
   if (aiResult) {
@@ -1390,41 +1204,59 @@ function updateAIDisplay(imageData, prediction, confidence, userName) {
       <div><strong>Confidence:</strong> ${Number(confidence).toFixed(4)}</div>
     `;
   }
-}
-// AI Report Generation Function
-async function generateAIMedicalReport(imageData) {
-  // For now, using mock reports - replace with actual Gemini API
-  const mockReports = [
-    "Chest X-ray shows clear lung fields with no evidence of consolidation or pleural effusion. The cardiomediastinal silhouette is within normal limits. No pneumothorax or focal opacities identified.",
-    
-    "Radiograph demonstrates mild peribronchial thickening with minimal hazy opacities in the lower lung zones. Heart size appears normal. Bony structures are intact without acute fracture.",
-    
-    "CT scan reveals bilateral ground-glass opacities predominantly in the peripheral lung zones. Mild interstitial thickening noted. No significant lymphadenopathy or pleural effusion.",
-    
-    "X-ray shows normal pulmonary vasculature and clear costophrenic angles. Diaphragmatic contours are smooth. No evidence of active pulmonary disease process.",
-    
-    "Imaging demonstrates patchy airspace opacities in the right middle and lower lobes. Small pleural effusion noted. Clinical correlation recommended for possible infectious process."
-  ];
 
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Return random mock report
-  return mockReports[Math.floor(Math.random() * mockReports.length)];
+  // Initialize annotation tools for the new image
+  if (aiImagePreview) {
+    aiImagePreview.onload = function() {
+      if (annotationTool) {
+        annotationTool.resizeCanvasToImage();
+      }
+    };
+  }
 }
 
-function updateAIDisplay(imageData, prediction, confidence, userName) {
-  const aiResult = document.getElementById("aiResult");
-  const aiImagePreview = document.getElementById("aiImagePreview");
+function saveAnalysisResults(imageData, prediction, confidence) {
+  localStorage.setItem('lastAnalysis', JSON.stringify({
+    imageData: imageData,
+    prediction: prediction,
+    confidence: confidence,
+    timestamp: Date.now()
+  }));
+}
 
-  aiImagePreview.src = imageData;
-  aiImagePreview.style.display = "block";
-  
-  aiResult.innerHTML = `
-    <div class="shared-by">Shared by: ${escapeHtml(userName)}</div>
-    <div><strong>Prediction:</strong> ${escapeHtml(String(prediction))}</div>
-    <div><strong>Confidence:</strong> ${Number(confidence).toFixed(4)}</div>
-  `;
+function loadLastAnalysis() {
+  const lastAnalysis = localStorage.getItem('lastAnalysis');
+  if (lastAnalysis) {
+    const analysis = JSON.parse(lastAnalysis);
+    currentImageData = analysis.imageData;
+    
+    const analysisResults = document.getElementById("analysisResults");
+    if (analysisResults) {
+      analysisResults.style.display = 'block';
+    }
+    
+    const aiImagePreview = document.getElementById('aiImagePreview');
+    if (aiImagePreview) {
+      aiImagePreview.src = currentImageData;
+      aiImagePreview.style.display = 'block';
+    }
+    
+    const aiResult = document.getElementById('aiResult');
+    if (aiResult) {
+      aiResult.innerHTML = `
+        <div class="shared-by">Last Analysis</div>
+        <div><strong>Prediction:</strong> ${escapeHtml(analysis.prediction)}</div>
+        <div><strong>Confidence:</strong> ${analysis.confidence}</div>
+      `;
+    }
+    
+    initAnnotationTools();
+    setTimeout(() => {
+      if (annotationTool) {
+        annotationTool.resizeCanvasToImage();
+      }
+    }, 100);
+  }
 }
 
 // ===============================
@@ -1519,108 +1351,6 @@ function removePeer(socketId) {
   }
 }
 
-// ===============================
-//   CHAT
-// ===============================
-function addChatMessage(name, msg) {
-  const chatMessages = document.getElementById("chatMessages");
-  if (!chatMessages) return;
-
-  const div = document.createElement("div");
-  div.className = "chat-msg";
-  div.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${escapeHtml(msg)}`;
-  chatMessages.appendChild(div);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-const chatForm = document.getElementById("chatForm");
-const chatInput = document.getElementById("chatInput");
-
-if (chatForm) {
-  chatForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const msg = chatInput.value.trim();
-    if (!msg) return;
-    socket.emit("chat-message", { roomId, message: msg, name: username });
-    addChatMessage("You", msg);
-    chatInput.value = "";
-  });
-}
-
 function escapeHtml(s) { 
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); 
-}
-
-// ===============================
-//   CONTROLS
-// ===============================
-function setupControls() {
-  const btnMic = document.getElementById("btnToggleMic");
-  const btnCam = document.getElementById("btnToggleCamera");
-  const btnScreen = document.getElementById("btnShareScreen");
-  const btnLeave = document.getElementById("btnLeave");
-
-  if (btnMic) {
-    btnMic.addEventListener("click", () => {
-      const audioTrack = localStream?.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        btnMic.textContent = audioTrack.enabled ? "🎙️ Mute" : "🔇 Unmute";
-        
-        // Update participant state
-        if (participants[socket.id]) {
-          participants[socket.id].isMuted = !audioTrack.enabled;
-        }
-      }
-    });
-  }
-
-  if (btnCam) {
-    btnCam.addEventListener("click", () => {
-      const videoTrack = localStream?.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        btnCam.textContent = videoTrack.enabled ? "📷 Camera Off" : "📷 Camera On";
-        
-        // Update participant state
-        if (participants[socket.id]) {
-          participants[socket.id].isVideoOn = videoTrack.enabled;
-        }
-      }
-    });
-  }
-
-  if (btnScreen) {
-    btnScreen.addEventListener("click", async () => {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = screenStream.getVideoTracks()[0];
-
-        // Replace video track for all peers
-        for (const id in peers) {
-          const sender = peers[id].getSenders().find(s => s.track?.kind === "video");
-          if (sender) sender.replaceTrack(screenTrack);
-        }
-
-        // Revert to camera when screen sharing stops
-        screenTrack.onended = () => {
-          const cameraTrack = localStream?.getVideoTracks()[0];
-          for (const id in peers) {
-            const sender = peers[id].getSenders().find(s => s.track?.kind === "video");
-            if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
-          }
-        };
-      } catch (err) {
-        console.error("Screen share error:", err);
-      }
-    });
-  }
-
-  if (btnLeave) {
-    btnLeave.addEventListener("click", () => {
-      if (socket) socket.disconnect();
-      if (localStream) localStream.getTracks().forEach(track => track.stop());
-      window.location.href = "index.html";
-    });
-  }
 }
