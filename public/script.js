@@ -2,7 +2,6 @@
 //   MEDIZOOM - CLIENT LOGIC
 // ===============================
 
-// CONFIGURATION - CHANGE THIS URL WHEN NGROK RESTARTS
 const AI_SERVER_URL = "http://127.0.0.1:5000";
 
 let socket = null;
@@ -17,7 +16,6 @@ let annotationTool = null;
 let userColors = {};
 let currentImageData = null;
 
-// ICE servers
 const iceServers = {
   iceServers: [
     { urls: ["stun:stun.l.google.com:19302", "stun:global.stun.twilio.com:3478"] }
@@ -25,7 +23,7 @@ const iceServers = {
 };
 
 // ===============================
-//   PAGE DETECTION
+//   PAGE INITIALIZATION
 // ===============================
 document.addEventListener("DOMContentLoaded", () => {
   const page = document.body.dataset.page;
@@ -33,9 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (page === "room") initRoomPage();
 });
 
-// ===============================
-//   HOME PAGE LOGIC
-// ===============================
 function initHomePage() {
   const joinForm = document.getElementById("joinForm");
   const roomInput = document.getElementById("roomInput");
@@ -46,6 +41,7 @@ function initHomePage() {
     e.preventDefault();
     const room = roomInput.value.trim();
     const name = nameInput.value.trim() || "Guest";
+    
     if (!room) {
       errorBox.textContent = "Please enter a room number.";
       return;
@@ -62,9 +58,6 @@ function initHomePage() {
   });
 }
 
-// ===============================
-//   ROOM PAGE LOGIC
-// ===============================
 async function initRoomPage() {
   const params = new URLSearchParams(window.location.search);
   roomId = params.get("room");
@@ -82,7 +75,7 @@ async function initRoomPage() {
 }
 
 // ===============================
-//   GET LOCAL CAMERA/MIC
+//   MEDIA STREAM
 // ===============================
 async function initLocalMedia() {
   try {
@@ -91,7 +84,6 @@ async function initLocalMedia() {
       audio: true
     });
 
-    // Create local video element
     const wrapper = document.createElement("div");
     wrapper.className = "remote-video-wrapper local-tile";
 
@@ -109,13 +101,10 @@ async function initLocalMedia() {
     wrapper.appendChild(video);
     wrapper.appendChild(label);
 
-    // Remove old local video if exists
     const existing = document.querySelector(".local-tile");
     if (existing) existing.remove();
 
-    // Add to grid
-    const grid = document.getElementById("remoteVideos");
-    grid.appendChild(wrapper);
+    document.getElementById("remoteVideos").appendChild(wrapper);
 
   } catch (err) {
     console.error("Media error:", err);
@@ -135,12 +124,10 @@ function registerSocketEvents() {
   });
 
   socket.on("existing-users", (userIds) => {
-    console.log("Existing users:", userIds);
     userIds.forEach((id) => createPeerConnection(id, true));
   });
 
-  socket.on("user-joined", ({ socketId, name, isHost: userIsHost }) => {
-    console.log("User joined:", socketId, name);
+  socket.on("user-joined", ({ socketId, name }) => {
     createPeerConnection(socketId, false);
   });
 
@@ -156,12 +143,10 @@ function registerSocketEvents() {
     showNotification("You are now the host");
   });
 
-  // Drawing events
   socket.on("drawing-action", (data) => {
     if (annotationTool && data.userId !== socket.id) {
       annotationTool.handleRemoteDrawing(data);
       
-      // Update user colors if new user
       if (!userColors[data.userId]) {
         userColors[data.userId] = data.data.color || '#4CAF50';
         if (annotationTool.updateUserIndicators) {
@@ -171,15 +156,14 @@ function registerSocketEvents() {
     }
   });
 
-  // AI Report Updates
   socket.on("ai-report-update", ({ report, userName }) => {
-    if (userName !== username) { // Don't show if it's our own report
+    if (userName !== username) {
       const reportResult = document.getElementById("reportResult");
       reportResult.innerHTML = `
         <div class="shared-by">AI Medical Report (by ${userName})</div>
         <div>${report}</div>
       `;
-      reportResult.className = "ai-report-result";
+      reportResult.className = "ai-report-result-integrated";
     }
   });
 
@@ -217,7 +201,6 @@ function registerSocketEvents() {
 
   // WebRTC Events
   socket.on("offer", async ({ offer, senderId }) => {
-    console.log("Received offer from:", senderId);
     if (!peers[senderId]) createPeerConnection(senderId, false);
     
     try {
@@ -231,7 +214,6 @@ function registerSocketEvents() {
   });
 
   socket.on("answer", async ({ answer, senderId }) => {
-    console.log("Received answer from:", senderId);
     const pc = peers[senderId];
     if (!pc) return;
     
@@ -253,7 +235,6 @@ function registerSocketEvents() {
   });
 
   socket.on("user-left", (socketId) => {
-    console.log("User left:", socketId);
     removePeer(socketId);
     updateParticipantsList(participants);
   });
@@ -262,16 +243,12 @@ function registerSocketEvents() {
     addChatMessage(name, message);
   });
 
-  // AI ANALYSIS BROADCAST
+  // AI Analysis Events
   socket.on("ai-analysis-update", ({ imageData, prediction, confidence, userName }) => {
-    console.log("📥 Received AI analysis from:", userName);
     updateAIDisplay(imageData, prediction, confidence, userName);
-    
-    // Show notification in chat
     addChatMessage("System", `${userName} shared a medical image analysis: ${prediction} (${(confidence * 100).toFixed(1)}%)`);
   });
 
-  // AI ANALYSIS STATUS
   socket.on("ai-analysis-status", ({ userName, status, message }) => {
     const aiResult = document.getElementById("aiResult");
     if (aiResult && status === "analyzing") {
@@ -291,7 +268,6 @@ function registerSocketEvents() {
 // ===============================
 function updateHostUI() {
   const hostBadge = document.getElementById("hostBadge");
-  
   if (hostBadge) {
     hostBadge.style.display = isHost ? "inline-block" : "none";
   }
@@ -359,7 +335,6 @@ function removeUser(userId) {
 }
 
 function showNotification(message) {
-  // Create notification element
   const notification = document.createElement("div");
   notification.className = "notification";
   notification.textContent = message;
@@ -376,22 +351,17 @@ function showNotification(message) {
   `;
   
   document.body.appendChild(notification);
-  
-  // Remove after 3 seconds
-  setTimeout(() => {
-    notification.remove();
-  }, 3000);
+  setTimeout(() => notification.remove(), 3000);
 }
 
 // ===============================
-//   PARTICIPANTS POPUP
+//   CONTROLS SETUP
 // ===============================
 function setupControls() {
   const btnParticipants = document.getElementById("btnParticipants");
   const closeParticipantsPopup = document.getElementById("closeParticipantsPopup");
   const participantsPopup = document.getElementById("participantsPopup");
 
-  // Participants popup
   btnParticipants.addEventListener("click", () => {
     participantsPopup.style.display = "flex";
   });
@@ -400,14 +370,12 @@ function setupControls() {
     participantsPopup.style.display = "none";
   });
 
-  // Close popup when clicking outside
   participantsPopup.addEventListener("click", (e) => {
     if (e.target === participantsPopup) {
       participantsPopup.style.display = "none";
     }
   });
 
-  // Media controls
   setupMediaControls();
 }
 
@@ -417,87 +385,70 @@ function setupMediaControls() {
   const btnScreen = document.getElementById("btnShareScreen");
   const btnLeave = document.getElementById("btnLeave");
 
-  if (btnMic) {
-    btnMic.addEventListener("click", () => {
-      const audioTrack = localStream?.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        btnMic.textContent = audioTrack.enabled ? "🎙️ Mute" : "🔇 Unmute";
-        
-        // Update participant state
-        if (participants[socket.id]) {
-          participants[socket.id].isMuted = !audioTrack.enabled;
-        }
+  btnMic.addEventListener("click", () => {
+    const audioTrack = localStream?.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      btnMic.textContent = audioTrack.enabled ? "🎙️ Mute" : "🔇 Unmute";
+      if (participants[socket.id]) {
+        participants[socket.id].isMuted = !audioTrack.enabled;
       }
-    });
-  }
+    }
+  });
 
-  if (btnCam) {
-    btnCam.addEventListener("click", () => {
-      const videoTrack = localStream?.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        btnCam.textContent = videoTrack.enabled ? "📷 Camera Off" : "📷 Camera On";
-        
-        // Update participant state
-        if (participants[socket.id]) {
-          participants[socket.id].isVideoOn = videoTrack.enabled;
-        }
+  btnCam.addEventListener("click", () => {
+    const videoTrack = localStream?.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      btnCam.textContent = videoTrack.enabled ? "📷 Camera Off" : "📷 Camera On";
+      if (participants[socket.id]) {
+        participants[socket.id].isVideoOn = videoTrack.enabled;
       }
-    });
-  }
+    }
+  });
 
-  if (btnScreen) {
-    btnScreen.addEventListener("click", async () => {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = screenStream.getVideoTracks()[0];
+  btnScreen.addEventListener("click", async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const screenTrack = screenStream.getVideoTracks()[0];
 
-        // Replace video track for all peers
+      for (const id in peers) {
+        const sender = peers[id].getSenders().find(s => s.track?.kind === "video");
+        if (sender) sender.replaceTrack(screenTrack);
+      }
+
+      screenTrack.onended = () => {
+        const cameraTrack = localStream?.getVideoTracks()[0];
         for (const id in peers) {
           const sender = peers[id].getSenders().find(s => s.track?.kind === "video");
-          if (sender) sender.replaceTrack(screenTrack);
+          if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
         }
+      };
+    } catch (err) {
+      console.error("Screen share error:", err);
+    }
+  });
 
-        // Revert to camera when screen sharing stops
-        screenTrack.onended = () => {
-          const cameraTrack = localStream?.getVideoTracks()[0];
-          for (const id in peers) {
-            const sender = peers[id].getSenders().find(s => s.track?.kind === "video");
-            if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
-          }
-        };
-      } catch (err) {
-        console.error("Screen share error:", err);
-      }
-    });
-  }
-
-  if (btnLeave) {
-    btnLeave.addEventListener("click", () => {
-      if (socket) socket.disconnect();
-      if (localStream) localStream.getTracks().forEach(track => track.stop());
-      window.location.href = "index.html";
-    });
-  }
+  btnLeave.addEventListener("click", () => {
+    if (socket) socket.disconnect();
+    if (localStream) localStream.getTracks().forEach(track => track.stop());
+    window.location.href = "index.html";
+  });
 }
 
 function updateParticipantsList(updatedParticipants) {
   participants = updatedParticipants;
   const participantsList = document.getElementById("participantsList");
   if (!participantsList) return;
-
   participantsList.innerHTML = generateParticipantsListHTML();
 }
 
 function updateVideoLabels() {
-  // Update local video label
   const localVideo = document.querySelector('.local-tile .video-label');
   if (localVideo) {
     localVideo.textContent = `${username} (You) ${isHost ? '👑' : ''}`;
   }
 
-  // Update remote video labels
   for (const [socketId, participant] of Object.entries(participants)) {
     if (socketId !== socket.id && remoteVideoElements[socketId]) {
       const remoteLabel = remoteVideoElements[socketId].querySelector('.video-label');
@@ -509,7 +460,7 @@ function updateVideoLabels() {
 }
 
 // ===============================
-//   INTEGRATED AI + CHAT
+//   AI INTEGRATION
 // ===============================
 function setupAIIntegration() {
   const aiForm = document.getElementById("aiForm");
@@ -519,26 +470,19 @@ function setupAIIntegration() {
   const reportLoading = document.getElementById("reportLoading");
   const reportResult = document.getElementById("reportResult");
 
-  // Initialize annotation tools
   initAnnotationTools();
   setupAnnotationToolEvents();
 
-  // ==================== AI FORM HANDLER ====================
   aiForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const file = aiFile.files[0];
     if (!file) {
       const aiResult = document.getElementById("aiResult");
-      if (aiResult) {
-        aiResult.textContent = "Please choose an image file.";
-      }
+      if (aiResult) aiResult.textContent = "Please choose an image file.";
       return;
     }
 
-    socket.emit("ai-analysis-start", {
-      roomId: roomId,
-      userName: username
-    });
+    socket.emit("ai-analysis-start", { roomId, userName: username });
 
     const reader = new FileReader();
     reader.onload = async function(e) {
@@ -550,23 +494,16 @@ function setupAIIntegration() {
         aiImagePreview.style.display = "block";
       }
       
-      if (analysisResults) {
-        analysisResults.style.display = "block";
-      }
+      if (analysisResults) analysisResults.style.display = "block";
       
-      // Initialize annotation tools after image loads
       if (aiImagePreview) {
         aiImagePreview.onload = function() {
-          if (annotationTool) {
-            annotationTool.resizeCanvasToImage();
-          }
+          if (annotationTool) annotationTool.resizeCanvasToImage();
         };
       }
       
       const aiResult = document.getElementById("aiResult");
-      if (aiResult) {
-        aiResult.textContent = "Analyzing medical image...";
-      }
+      if (aiResult) aiResult.textContent = "Analyzing medical image...";
 
       try {
         const formData = new FormData();
@@ -593,15 +530,11 @@ function setupAIIntegration() {
 
         saveAnalysisResults(currentImageData, data.prediction, data.confidence);
 
-        if (reportResult) {
-          reportResult.innerHTML = "";
-        }
-        if (reportLoading) {
-          reportLoading.style.display = "none";
-        }
+        if (reportResult) reportResult.innerHTML = "";
+        if (reportLoading) reportLoading.style.display = "none";
 
         socket.emit("ai-analysis-result", {
-          roomId: roomId,
+          roomId,
           imageData: currentImageData,
           prediction: data.prediction,
           confidence: data.confidence,
@@ -611,15 +544,12 @@ function setupAIIntegration() {
       } catch (err) {
         console.error("AI analysis failed:", err);
         const aiResult = document.getElementById("aiResult");
-        if (aiResult) {
-          aiResult.textContent = "Error processing image. Please try again.";
-        }
+        if (aiResult) aiResult.textContent = "Error processing image. Please try again.";
       }
     };
     reader.readAsDataURL(file);
   });
 
-  // ==================== REPORT AI BUTTON HANDLER ====================
   generateReportBtn.addEventListener("click", async () => {
     if (!currentImageData) {
       alert("Please analyze an image first.");
@@ -638,20 +568,16 @@ function setupAIIntegration() {
           <div class="shared-by">AI Medical Report</div>
           <div>${report}</div>
         `;
-        reportResult.className = "ai-report-result";
+        reportResult.className = "ai-report-result-integrated";
       }
 
-      socket.emit("ai-report-generated", {
-        roomId: roomId,
-        report: report,
-        userName: username
-      });
+      socket.emit("ai-report-generated", { roomId, report, userName: username });
 
     } catch (error) {
       console.error("Report generation failed:", error);
       if (reportResult) {
         reportResult.innerHTML = "❌ Failed to generate report. Please try again.";
-        reportResult.className = "ai-report-result report-error";
+        reportResult.className = "ai-report-result-integrated report-error";
       }
     } finally {
       if (reportLoading) reportLoading.style.display = "none";
@@ -659,7 +585,7 @@ function setupAIIntegration() {
     }
   });
 
-  // ==================== CHAT HANDLER ====================
+  // Chat Handler
   const chatForm = document.getElementById("chatForm");
   const chatInput = document.getElementById("chatInput");
 
@@ -675,11 +601,13 @@ function setupAIIntegration() {
   }
 }
 
-// ==================== ANNOTATION TOOLS ====================
+// ===============================
+//   ANNOTATION TOOLS
+// ===============================
 class AnnotationTool {
   constructor() {
     this.canvas = document.getElementById('annotationCanvas');
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.isDrawing = false;
     this.currentTool = 'pen';
     this.currentColor = '#4CAF50';
@@ -696,7 +624,7 @@ class AnnotationTool {
     
     this.setupEventListeners();
     this.assignUserColor();
-    this.saveState(); // Initial state
+    this.saveState();
   }
 
   setupEventListeners() {
@@ -705,7 +633,6 @@ class AnnotationTool {
     this.canvas.addEventListener('mouseup', this.stopDrawing.bind(this));
     this.canvas.addEventListener('mouseout', this.stopDrawing.bind(this));
     
-    // Touch events
     this.canvas.addEventListener('touchstart', this.startDrawing.bind(this));
     this.canvas.addEventListener('touchmove', this.draw.bind(this));
     this.canvas.addEventListener('touchend', this.stopDrawing.bind(this));
@@ -772,7 +699,6 @@ class AnnotationTool {
     [this.startX, this.startY] = [pos.x, pos.y];
     [this.lastX, this.lastY] = [pos.x, pos.y];
 
-    // Initialize temp canvas for shape previews
     if (this.isShapeTool()) {
       this.tempCanvas.width = this.canvas.width;
       this.tempCanvas.height = this.canvas.height;
@@ -797,10 +723,8 @@ class AnnotationTool {
     const currentY = pos.y;
 
     if (this.isShapeTool() && this.isShapePreview) {
-      // Draw shape preview on temp canvas
       this.drawShapePreview(this.startX, this.startY, currentX, currentY);
     } else {
-      // Freehand drawing (pen, eraser, highlighter)
       this.drawFreehand(currentX, currentY);
     }
 
@@ -817,8 +741,8 @@ class AnnotationTool {
       this.ctx.strokeStyle = 'rgba(0,0,0,1)';
     } else if (this.currentTool === 'highlighter') {
       this.ctx.globalCompositeOperation = 'source-over';
-      this.ctx.strokeStyle = this.currentColor + '80'; // Add transparency
-      this.ctx.lineWidth = this.brushSize * 3; // Thicker for highlighter
+      this.ctx.strokeStyle = this.currentColor + '80';
+      this.ctx.lineWidth = this.brushSize * 3;
     } else {
       this.ctx.globalCompositeOperation = 'source-over';
       this.ctx.strokeStyle = this.currentColor;
@@ -841,17 +765,13 @@ class AnnotationTool {
   }
 
   drawShapePreview(startX, startY, currentX, currentY) {
-    // Clear temp canvas
     this.tempCtx.clearRect(0, 0, this.tempCanvas.width, this.tempCanvas.height);
-    
-    // Copy current canvas state to temp canvas
     this.tempCtx.drawImage(this.canvas, 0, 0);
     
-    // Draw the preview shape with dashed line
     this.tempCtx.strokeStyle = this.currentColor;
     this.tempCtx.lineWidth = this.brushSize;
-    this.tempCtx.setLineDash([5, 5]); // Dashed line for preview
-    this.tempCtx.globalAlpha = 0.7; // Semi-transparent preview
+    this.tempCtx.setLineDash([5, 5]);
+    this.tempCtx.globalAlpha = 0.7;
     
     switch (this.currentTool) {
       case 'rectangle':
@@ -859,23 +779,20 @@ class AnnotationTool {
         const rectHeight = currentY - startY;
         this.tempCtx.strokeRect(startX, startY, rectWidth, rectHeight);
         break;
-        
       case 'circle':
         const radius = Math.sqrt(Math.pow(currentX - startX, 2) + Math.pow(currentY - startY, 2));
         this.tempCtx.beginPath();
         this.tempCtx.arc(startX, startY, radius, 0, 2 * Math.PI);
         this.tempCtx.stroke();
         break;
-        
       case 'arrow':
         this.drawArrow(this.tempCtx, startX, startY, currentX, currentY, true);
         break;
     }
     
-    // Draw the preview on main canvas temporarily
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.drawImage(this.canvas, 0, 0); // Restore original
-    this.ctx.drawImage(this.tempCanvas, 0, 0); // Draw preview on top
+    this.ctx.drawImage(this.canvas, 0, 0);
+    this.ctx.drawImage(this.tempCanvas, 0, 0);
   }
 
   drawArrow(ctx, fromX, fromY, toX, toY, isPreview = false) {
@@ -890,22 +807,18 @@ class AnnotationTool {
       ctx.globalAlpha = 1.0;
     }
     
-    // Draw line
     ctx.beginPath();
     ctx.moveTo(fromX, fromY);
     ctx.lineTo(toX, toY);
     ctx.stroke();
     
-    // Draw arrow head
     ctx.beginPath();
     ctx.moveTo(toX, toY);
     ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
-    
     ctx.moveTo(toX, toY);
     ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
     ctx.stroke();
     
-    // Reset line properties
     ctx.setLineDash([]);
     ctx.globalAlpha = 1.0;
   }
@@ -915,21 +828,19 @@ class AnnotationTool {
     
     this.isDrawing = false;
     
-    // For shapes, finalize the drawing
     if (this.isShapeTool() && this.isShapePreview) {
       this.finalizeShape();
       this.isShapePreview = false;
     }
     
-    this.saveState(); // Save state for undo
+    this.saveState();
     broadcastDrawingAction('stop', {});
   }
 
   finalizeShape() {
-    // Draw the final shape on the main canvas (HOLLOW - no fill)
     this.ctx.strokeStyle = this.currentColor;
     this.ctx.lineWidth = this.brushSize;
-    this.ctx.setLineDash([]); // Solid line for final shape
+    this.ctx.setLineDash([]);
     this.ctx.globalAlpha = 1.0;
     
     switch (this.currentTool) {
@@ -938,14 +849,12 @@ class AnnotationTool {
         const rectHeight = this.lastY - this.startY;
         this.ctx.strokeRect(this.startX, this.startY, rectWidth, rectHeight);
         break;
-        
       case 'circle':
         const radius = Math.sqrt(Math.pow(this.lastX - this.startX, 2) + Math.pow(this.lastY - this.startY, 2));
         this.ctx.beginPath();
         this.ctx.arc(this.startX, this.startY, radius, 0, 2 * Math.PI);
-        this.ctx.stroke(); // stroke() makes it hollow, fill() would fill it
+        this.ctx.stroke();
         break;
-        
       case 'arrow':
         this.drawArrow(this.ctx, this.startX, this.startY, this.lastX, this.lastY, false);
         break;
@@ -983,13 +892,9 @@ class AnnotationTool {
     broadcastDrawingAction('clear', {});
   }
 
-  // UNDO FUNCTIONALITY
   saveState() {
-    // Save current canvas state
     const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
     this.drawingHistory.push(imageData);
-    
-    // Keep only last 20 states to prevent memory issues
     if (this.drawingHistory.length > 20) {
       this.drawingHistory.shift();
     }
@@ -997,15 +902,11 @@ class AnnotationTool {
 
   undo() {
     if (this.drawingHistory.length > 1) {
-      // Remove current state
       this.drawingHistory.pop();
-      // Restore previous state
       const previousState = this.drawingHistory[this.drawingHistory.length - 1];
       this.ctx.putImageData(previousState, 0, 0);
-      
       broadcastDrawingAction('undo', {});
     } else if (this.drawingHistory.length === 1) {
-      // Clear canvas if only initial state remains
       this.clearCanvas();
     }
   }
@@ -1017,7 +918,7 @@ class AnnotationTool {
       this.canvas.height = img.naturalHeight;
       this.canvas.style.width = '100%';
       this.canvas.style.height = '100%';
-      this.saveState(); // Save initial resized state
+      this.saveState();
     }
   }
 
@@ -1086,7 +987,6 @@ function initAnnotationTools() {
 }
 
 function setupAnnotationToolEvents() {
-  // Tool buttons
   document.querySelectorAll('.tool-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
@@ -1097,17 +997,13 @@ function setupAnnotationToolEvents() {
     });
   });
 
-  // Color picker
   const colorPicker = document.getElementById('colorPicker');
   if (colorPicker) {
     colorPicker.addEventListener('change', (e) => {
-      if (annotationTool) {
-        annotationTool.setColor(e.target.value);
-      }
+      if (annotationTool) annotationTool.setColor(e.target.value);
     });
   }
 
-  // Brush size
   const brushSize = document.getElementById('brushSize');
   const brushSizeValue = document.getElementById('brushSizeValue');
   if (brushSize && brushSizeValue) {
@@ -1119,7 +1015,6 @@ function setupAnnotationToolEvents() {
     });
   }
 
-  // Clear canvas
   const clearCanvas = document.getElementById('clearCanvas');
   if (clearCanvas) {
     clearCanvas.addEventListener('click', () => {
@@ -1130,13 +1025,10 @@ function setupAnnotationToolEvents() {
     });
   }
 
-  // Undo button
   const undoDrawing = document.getElementById('undoDrawing');
   if (undoDrawing) {
     undoDrawing.addEventListener('click', () => {
-      if (annotationTool) {
-        annotationTool.undo();
-      }
+      if (annotationTool) annotationTool.undo();
     });
   }
 }
@@ -1144,9 +1036,9 @@ function setupAnnotationToolEvents() {
 function broadcastDrawingAction(action, data) {
   if (socket) {
     socket.emit('drawing-action', {
-      roomId: roomId,
-      action: action,
-      data: data,
+      roomId,
+      action,
+      data,
       userId: socket.id,
       userName: username
     });
@@ -1193,9 +1085,7 @@ function updateAIDisplay(imageData, prediction, confidence, userName) {
     aiImagePreview.style.display = "block";
   }
   
-  if (analysisResults) {
-    analysisResults.style.display = "block";
-  }
+  if (analysisResults) analysisResults.style.display = "block";
   
   if (aiResult) {
     aiResult.innerHTML = `
@@ -1205,21 +1095,18 @@ function updateAIDisplay(imageData, prediction, confidence, userName) {
     `;
   }
 
-  // Initialize annotation tools for the new image
   if (aiImagePreview) {
     aiImagePreview.onload = function() {
-      if (annotationTool) {
-        annotationTool.resizeCanvasToImage();
-      }
+      if (annotationTool) annotationTool.resizeCanvasToImage();
     };
   }
 }
 
 function saveAnalysisResults(imageData, prediction, confidence) {
   localStorage.setItem('lastAnalysis', JSON.stringify({
-    imageData: imageData,
-    prediction: prediction,
-    confidence: confidence,
+    imageData,
+    prediction,
+    confidence,
     timestamp: Date.now()
   }));
 }
@@ -1231,9 +1118,7 @@ function loadLastAnalysis() {
     currentImageData = analysis.imageData;
     
     const analysisResults = document.getElementById("analysisResults");
-    if (analysisResults) {
-      analysisResults.style.display = 'block';
-    }
+    if (analysisResults) analysisResults.style.display = 'block';
     
     const aiImagePreview = document.getElementById('aiImagePreview');
     if (aiImagePreview) {
@@ -1252,9 +1137,7 @@ function loadLastAnalysis() {
     
     initAnnotationTools();
     setTimeout(() => {
-      if (annotationTool) {
-        annotationTool.resizeCanvasToImage();
-      }
+      if (annotationTool) annotationTool.resizeCanvasToImage();
     }, 100);
   }
 }
@@ -1265,19 +1148,15 @@ function loadLastAnalysis() {
 function createPeerConnection(remoteId, isInitiator) {
   if (peers[remoteId]) return;
 
-  console.log("Creating peer connection with:", remoteId, "initiator:", isInitiator);
-
   const pc = new RTCPeerConnection(iceServers);
   peers[remoteId] = pc;
 
-  // Add local tracks
   if (localStream) {
     localStream.getTracks().forEach(track => {
       pc.addTrack(track, localStream);
     });
   }
 
-  // Handle ICE candidates
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit("ice-candidate", {
@@ -1287,10 +1166,7 @@ function createPeerConnection(remoteId, isInitiator) {
     }
   };
 
-  // Handle remote stream
   pc.ontrack = (event) => {
-    console.log("Received remote track from:", remoteId);
-    
     if (!remoteVideoElements[remoteId]) {
       const wrapper = document.createElement("div");
       wrapper.className = "remote-video-wrapper";
@@ -1315,24 +1191,18 @@ function createPeerConnection(remoteId, isInitiator) {
     }
   };
 
-  // Handle connection state
   pc.onconnectionstatechange = () => {
-    console.log(`Connection state with ${remoteId}:`, pc.connectionState);
     if (pc.connectionState === "failed" || pc.connectionState === "closed") {
       removePeer(remoteId);
     }
   };
 
-  // Create offer if initiator
   if (isInitiator) {
     setTimeout(async () => {
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        socket.emit("offer", {
-          offer,
-          targetId: remoteId
-        });
+        socket.emit("offer", { offer, targetId: remoteId });
       } catch (err) {
         console.error("Failed to create offer:", err);
       }

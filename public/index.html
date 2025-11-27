@@ -3,9 +3,151 @@
 <head>
   <meta charset="UTF-8" />
   <title>MediZoom - Join Medical Consultation</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🩺</text></svg>">
   <style>
+    /* ============================================================================ */
+    /*  MEDIZOOM — MEDICAL VIDEO CONSULTATION STYLES                               */
+    /* ============================================================================ */
+
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f2b46, #1a3a5f, #2a4a6e);
+      --card-bg: rgba(18, 18, 34, 0.95);
+      --accent: #4CAF50;
+      --accent-soft: rgba(76, 175, 80, 0.12);
+      --text-main: #f5f5ff;
+      --text-muted: #c5c5e5;
+      --danger: #ff4b5c;
+      --border-subtle: rgba(255, 255, 255, 0.1);
+      --shadow-soft: 0 20px 40px rgba(0, 0, 0, 0.55);
+      --radius-lg: 18px;
+      --radius-xl: 24px;
+    }
+
+    /* BASIC RESET */
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, sans-serif;
+      color: var(--text-main);
+      background-image: var(--bg-gradient);
+      background-attachment: fixed;
+    }
+
+    /* BUTTONS */
+    .btn {
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      display: inline-block;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      opacity: 0.9;
+    }
+
+    /* HOME PAGE SPECIFIC STYLES */
+    .app-container.center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      min-height: 100vh;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      padding: 28px 24px 24px;
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-soft);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(16px);
+    }
+
+    .app-title {
+      margin: 0 0 8px;
+      font-size: 1.9rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .app-subtitle {
+      margin-bottom: 20px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .input {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+      background: rgba(5, 5, 20, 0.9);
+      color: var(--text-main);
+      font-size: 1rem;
+      font-family: inherit;
+      transition: border-color 0.2s ease;
+    }
+
+    .input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .primary-btn {
+      margin-top: 10px;
+      padding: 12px 16px;
+      background: var(--accent);
+      color: white;
+      border-radius: 999px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .primary-btn:hover {
+      background: #45a049;
+      transform: translateY(-1px);
+    }
+
+    .error-text {
+      color: var(--danger);
+      min-height: 18px;
+      font-size: 0.9rem;
+      margin: 0;
+      text-align: center;
+    }
+
+    .hint {
+      margin-top: 16px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.4;
+    }
+
     .back-link {
       display: inline-flex;
       align-items: center;
@@ -43,6 +185,18 @@
     .host-btn:hover {
       background: var(--accent);
       color: white;
+    }
+
+    /* RESPONSIVE DESIGN */
+    @media (max-width: 480px) {
+      .card {
+        padding: 20px 16px;
+        margin: 16px;
+      }
+      
+      .app-title {
+        font-size: 1.6rem;
+      }
     }
   </style>
 </head>
@@ -102,8 +256,45 @@
     </div>
   </div>
 
-  <!-- REQUIRED: load socket.io before script.js -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="script.js"></script>
+  <script>
+    // ===============================
+    //   HOME PAGE LOGIC
+    // ===============================
+    document.addEventListener("DOMContentLoaded", function() {
+      const joinForm = document.getElementById("joinForm");
+      const roomInput = document.getElementById("roomInput");
+      const nameInput = document.getElementById("nameInput");
+      const errorBox = document.getElementById("homeError");
+
+      joinForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const room = roomInput.value.trim();
+        const name = nameInput.value.trim() || "Guest";
+        
+        if (!room) {
+          errorBox.textContent = "Please enter a room number.";
+          return;
+        }
+
+        errorBox.textContent = "";
+
+        try {
+          // Test camera/mic access
+          await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          
+          // Redirect to room page
+          window.location.href = `room.html?room=${room}&name=${encodeURIComponent(name)}`;
+        } catch (err) {
+          errorBox.textContent = "Camera or microphone access is required to join the consultation.";
+          console.error("Media error:", err);
+        }
+      });
+
+      // Clear error when user starts typing
+      roomInput.addEventListener('input', () => {
+        errorBox.textContent = "";
+      });
+    });
+  </script>
 </body>
 </html>

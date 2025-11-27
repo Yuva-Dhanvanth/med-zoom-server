@@ -10,15 +10,20 @@
   <div class="app-container meeting-layout">
     <!-- LEFT: Video area -->
     <div class="video-section">
-      <!-- Simplified Top Bar - Only Room Info -->
+      <!-- Top bar: room info -->
       <div class="top-bar">
         <div class="room-info">
           <span class="badge">Medical Consultation</span>
           <span id="roomLabel" class="room-label"></span>
           <span id="hostBadge" class="host-badge" style="display: none;">👑 Host</span>
         </div>
-        <div class="user-info">
-          <span id="usernameLabel" class="username-label"></span>
+        <div class="top-bar-right">
+          <button id="btnParticipants" class="btn participants-btn">
+            👥 Participants
+          </button>
+          <div class="user-info">
+            <span id="usernameLabel" class="username-label"></span>
+          </div>
         </div>
       </div>
 
@@ -29,9 +34,6 @@
 
       <!-- Controls -->
       <div class="controls-bar">
-        <button id="btnParticipants" class="btn control-btn">
-          👥 Participants
-        </button>
         <button id="btnToggleMic" class="btn control-btn">
           🎙️ Mute
         </button>
@@ -47,130 +49,92 @@
       </div>
     </div>
 
-    <!-- RIGHT: Integrated AI + Chat Sidebar -->
-    <div class="sidebar">
-      <!-- AI Medical Analysis Section (Top) -->
-      <div class="sidebar-section ai-section">
-        <h2 class="sidebar-title">🩺 Medical Analysis</h2>
-        
-        <!-- AI Upload Form -->
-        <form id="aiForm" class="ai-form">
-          <label class="label">Upload Medical Image</label>
-          <input
-            id="aiFile"
-            type="file"
-            name="file"
-            accept="image/*"
-            class="input"
-          />
-          <button type="submit" class="btn primary-btn">
-            Upload & Analyze
-          </button>
-        </form>
+<!-- RIGHT: Integrated AI + Chat Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-section ai-chat-integrated">
+    <!-- AI Section - Always Visible -->
+    <div class="ai-section-integrated">
+      <h2 class="sidebar-title">🩺 Medical Analysis</h2>
+      
+      <!-- Upload Form -->
+      <form id="aiForm" class="ai-form">
+        <label class="label">Upload Medical Image (X-Ray, CT, etc.)</label>
+        <input id="aiFile" type="file" name="file" accept="image/*" class="input" />
+        <button type="submit" class="btn primary-btn">Upload & Analyze</button>
+      </form>
 
-        <!-- Analysis Results -->
-        <div id="analysisResults" class="analysis-results" style="display: none;">
-          <!-- Image and Canvas Container -->
-          <div class="image-canvas-container">
-            <div class="canvas-wrapper">
-              <img id="aiImagePreview" src="" alt="Medical image preview" class="ai-image-preview" />
-              <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+      <!-- Analysis Results -->
+      <div id="analysisResults" class="analysis-results-integrated" style="display: none;">
+        <!-- Annotation Tools ABOVE Image -->
+        <div class="annotation-tools-integrated">
+          <div class="tools-header">
+            <h4>🖌️ Annotation Tools</h4>
+            <div class="user-color-indicator">
+              Your color: <span id="userColorBadge" class="color-badge"></span>
             </div>
           </div>
-
-          <!-- Annotation Tools -->
-          <div class="annotation-tools">
-            <div class="tools-header">
-              <h4>🖌️ Annotation Tools</h4>
-              <div class="user-color-indicator">
-                Your color: <span id="userColorBadge" class="color-badge"></span>
-              </div>
-            </div>
-            
-            <div class="tools-row">
-              <!-- Drawing Tools -->
-              <div class="tool-group">
-                <button class="tool-btn active" data-tool="pen" title="Pen">
-                  ✏️
-                </button>
-                <button class="tool-btn" data-tool="eraser" title="Eraser">
-                  🧹
-                </button>
-                <button class="tool-btn" data-tool="highlighter" title="Highlighter">
-                  🖍️
-                </button>
-              </div>
-
-              <!-- Shapes -->
-              <div class="tool-group">
-                <button class="tool-btn" data-tool="circle" title="Circle">
-                  ⭕
-                </button>
-                <button class="tool-btn" data-tool="rectangle" title="Rectangle">
-                  ⬜
-                </button>
-                <button class="tool-btn" data-tool="arrow" title="Arrow">
-                  ➡️
-                </button>
-              </div>
-
-              <!-- Colors & Size -->
-              <div class="tool-group">
-                <input type="color" id="colorPicker" value="#4CAF50" title="Color">
-                <input type="range" id="brushSize" min="1" max="20" value="3" title="Brush Size">
-                <span id="brushSizeValue">3px</span>
-              </div>
-
-              <!-- Actions -->
-              <div class="tool-group">
-                <button id="clearCanvas" class="tool-btn danger" title="Clear All">
-                  🗑️
-                </button>
-                <button id="undoDrawing" class="tool-btn" title="Undo">
-                  ↩️
-                </button>
-              </div>
-            </div>
-
-            <!-- User Indicators -->
-            <div id="userIndicators" class="user-indicators"></div>
-          </div>
-
-          <!-- AI Analysis Result -->
-          <div id="aiResult" class="ai-result"></div>
           
-          <!-- Report AI Button -->
-          <div class="report-ai-section">
-            <button id="generateReportBtn" class="btn primary-btn report-btn">
-              📋 Generate AI Report (Gemini)
-            </button>
-            <div id="reportLoading" class="report-loading" style="display: none;">
-              ⏳ AI is generating medical report...
+          <div class="tools-row">
+            <div class="tool-group">
+              <button class="tool-btn active" data-tool="pen">✏️</button>
+              <button class="tool-btn" data-tool="eraser">🧹</button>
+              <button class="tool-btn" data-tool="highlighter">🖍️</button>
             </div>
-            <div id="reportResult" class="ai-report-result"></div>
+            <div class="tool-group">
+              <button class="tool-btn" data-tool="circle">⭕</button>
+              <button class="tool-btn" data-tool="rectangle">⬜</button>
+              <button class="tool-btn" data-tool="arrow">➡️</button>
+            </div>
+            <div class="tool-group">
+              <input type="color" id="colorPicker" value="#4CAF50">
+              <input type="range" id="brushSize" min="1" max="20" value="3">
+              <span id="brushSizeValue">3px</span>
+            </div>
+            <div class="tool-group">
+              <button id="clearCanvas" class="tool-btn danger">🗑️</button>
+              <button id="undoDrawing" class="tool-btn">↩️</button>
+            </div>
+          </div>
+          <div id="userIndicators" class="user-indicators"></div>
+        </div>
+
+        <!-- Big Image Display -->
+        <div class="image-canvas-integrated">
+          <div class="canvas-wrapper-integrated">
+            <img id="aiImagePreview" src="" alt="Medical image" class="ai-image-preview-integrated" />
+            <canvas id="annotationCanvas" class="annotation-canvas-integrated"></canvas>
           </div>
         </div>
-      </div>
 
-      <!-- Chat Section (Bottom) -->
-      <div class="sidebar-section chat-section">
-        <h2 class="sidebar-title">💬 Chat</h2>
-        <div id="chatMessages" class="chat-messages">
-          <!-- Messages will appear here -->
+        <!-- AI Result -->
+        <div id="aiResult" class="ai-result-integrated"></div>
+        
+        <!-- Report Button BELOW Image -->
+        <div class="report-ai-integrated">
+          <button id="generateReportBtn" class="btn primary-btn report-btn-integrated">
+            📋 Generate AI Report (Gemini)
+          </button>
+          <div id="reportLoading" class="report-loading" style="display: none;">
+            ⏳ AI is generating medical report...
+          </div>
+          <div id="reportResult" class="ai-report-result-integrated"></div>
         </div>
-        <form id="chatForm" class="chat-form">
-          <input
-            id="chatInput"
-            type="text"
-            class="input chat-input"
-            placeholder="Type a message and hit Enter..."
-            autocomplete="off"
-          />
-        </form>
       </div>
     </div>
-  </div>
 
+    <!-- Chat Section - With Scroll Bar -->
+    <div class="chat-section-integrated">
+      <h3 class="chat-title-integrated">💬 Chat</h3>
+      <div id="chatMessages" class="chat-messages-integrated">
+        <!-- Messages will appear here -->
+      </div>
+      <form id="chatForm" class="chat-form-integrated">
+        <input id="chatInput" type="text" class="input chat-input-integrated" 
+               placeholder="Type a message and hit Enter..." autocomplete="off" />
+      </form>
+    </div>
+  </div>
+</div>
   <!-- Participants Popup -->
   <div id="participantsPopup" class="popup-overlay">
     <div class="popup-content">
