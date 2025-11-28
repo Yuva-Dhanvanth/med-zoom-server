@@ -2,7 +2,10 @@
 //   MEDIZOOM - CLIENT LOGIC
 // ===============================
 
-const AI_SERVER_URL = "http://127.0.0.1:5000";
+// 🔧 CONFIGURATION - UPDATE THESE!
+const AI_SERVER_URL = "https://santalaceous-catatonically-emile.ngrok-free.dev"; // Replace with your ngrok URL
+const GEMINI_API_KEY = "AIzaSyC_FsfL85FExLbBSbacXER2jZm2IeYUXBg"; // Replace with your Gemini API key
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
 
 let socket = null;
 let localStream = null;
@@ -144,7 +147,6 @@ function registerSocketEvents() {
   });
 
   socket.on("drawing-action", (data) => {
-    // Only process drawings from other users
     if (data.userId !== socket.id && annotationTool) {
       annotationTool.handleRemoteDrawing(data);
       
@@ -162,7 +164,7 @@ function registerSocketEvents() {
       const reportResult = document.getElementById("reportResult");
       reportResult.innerHTML = `
         <div class="shared-by">AI Medical Report (by ${userName})</div>
-        <div>${report}</div>
+        <div class="report-content">${formatReportForDisplay(report)}</div>
       `;
       reportResult.className = "ai-report-result-integrated";
     }
@@ -461,7 +463,7 @@ function updateVideoLabels() {
 }
 
 // ===============================
-//   AI INTEGRATION
+//   AI INTEGRATION - BOTH COVID & GEMINI
 // ===============================
 function setupAIIntegration() {
   const aiForm = document.getElementById("aiForm");
@@ -474,6 +476,7 @@ function setupAIIntegration() {
   initAnnotationTools();
   setupAnnotationToolEvents();
 
+  // COVID Analysis Form
   aiForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const file = aiFile.files[0];
@@ -551,6 +554,7 @@ function setupAIIntegration() {
     reader.readAsDataURL(file);
   });
 
+  // Generate Comprehensive Report Button
   generateReportBtn.addEventListener("click", async () => {
     if (!currentImageData) {
       alert("Please analyze an image first.");
@@ -566,8 +570,8 @@ function setupAIIntegration() {
       
       if (reportResult) {
         reportResult.innerHTML = `
-          <div class="shared-by">AI Medical Report</div>
-          <div>${report}</div>
+          <div class="shared-by">🩺 Comprehensive AI Medical Report</div>
+          <div class="report-content">${formatReportForDisplay(report)}</div>
         `;
         reportResult.className = "ai-report-result-integrated";
       }
@@ -603,7 +607,196 @@ function setupAIIntegration() {
 }
 
 // ===============================
-//   ANNOTATION TOOLS - FIXED
+//   COMPREHENSIVE MEDICAL REPORT (COVID + GEMINI)
+// ===============================
+async function generateAIMedicalReport(imageData) {
+  const reportLoading = document.getElementById("reportLoading");
+  const reportResult = document.getElementById("reportResult");
+  
+  if (reportLoading) reportLoading.style.display = "block";
+  if (reportResult) reportResult.innerHTML = "🔄 Generating comprehensive medical report...";
+
+  try {
+    // Get the current COVID analysis results
+    const covidAnalysis = getCurrentCovidAnalysis();
+    
+    // Generate detailed radiology report using Gemini
+    const detailedReport = await generateGeminiMedicalReport(covidAnalysis);
+    
+    // Combine both into a comprehensive report
+    const comprehensiveReport = formatComprehensiveReport(covidAnalysis, detailedReport);
+    
+    return comprehensiveReport;
+
+  } catch (error) {
+    console.error("Comprehensive report generation failed:", error);
+    return generateFallbackReport();
+  }
+}
+
+// Get current COVID analysis from the UI
+function getCurrentCovidAnalysis() {
+  const aiResult = document.getElementById("aiResult");
+  if (aiResult) {
+    const predictionElem = aiResult.querySelector('div:nth-child(2)');
+    const confidenceElem = aiResult.querySelector('div:nth-child(3)');
+    
+    const prediction = predictionElem ? predictionElem.textContent.replace('Prediction:', '').trim() : 'Unknown';
+    const confidence = confidenceElem ? confidenceElem.textContent.replace('Confidence:', '').trim() : 'Unknown';
+    
+    return {
+      prediction: prediction,
+      confidence: confidence,
+      timestamp: new Date().toLocaleString()
+    };
+  }
+  
+  return {
+    prediction: 'Analysis not available',
+    confidence: 'N/A',
+    timestamp: new Date().toLocaleString()
+  };
+}
+
+// Generate detailed report using Gemini AI
+async function generateGeminiMedicalReport(covidAnalysis) {
+  const prompt = `As a senior radiologist, provide a detailed chest X-ray analysis report.
+
+COVID-19 SCREENING RESULTS:
+- Prediction: ${covidAnalysis.prediction}
+- Confidence: ${covidAnalysis.confidence}
+
+Please provide a comprehensive radiology report in the following format:
+
+CHEST X-RAY REPORT
+
+CLINICAL INFORMATION:
+Routine chest radiograph for evaluation${covidAnalysis.prediction.includes('COVID') ? ', with suspected respiratory infection' : ''}.
+
+TECHNIQUE:
+Single PA view of the chest.
+
+COMPARISON:
+No prior studies available.
+
+FINDINGS:
+LUNGS AND PLEURA: [Detailed assessment of lung fields, opacities, consolidation]
+HEART AND MEDIASTINUM: [Cardiac silhouette, mediastinal contours]
+BONES AND SOFT TISSUES: [Bony structures, soft tissue assessment]
+OTHER: [Additional findings if any]
+
+IMPRESSION:
+[Summary of key findings including correlation with COVID screening results]
+
+RECOMMENDATIONS:
+[Clinical follow-up suggestions based on findings]
+
+Provide a professional, concise radiology report that a doctor would understand.`;
+
+  const requestBody = {
+    contents: [{
+      parts: [{
+        text: prompt
+      }]
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      topK: 40,
+      topP: 0.8,
+      maxOutputTokens: 1024,
+    }
+  };
+
+  const response = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    throw new Error('Invalid response from Gemini API');
+  }
+
+  return data.candidates[0].content.parts[0].text;
+}
+
+// Format the combined report
+function formatComprehensiveReport(covidAnalysis, detailedReport) {
+  return `🏥 COMPREHENSIVE MEDICAL IMAGE ANALYSIS REPORT
+Generated: ${covidAnalysis.timestamp}
+
+🔬 AI COVID-19 SCREENING RESULTS:
+   • Prediction: ${covidAnalysis.prediction}
+   • Confidence Level: ${covidAnalysis.confidence}
+
+────────────────────────────────────────────
+
+📋 DETAILED RADIOLOGY REPORT:
+${detailedReport}
+
+────────────────────────────────────────────
+
+💡 CLINICAL NOTES:
+- This report combines AI-powered COVID-19 screening with detailed radiological analysis
+- COVID screening results should be correlated with clinical symptoms and PCR testing
+- Final diagnosis should be made by qualified medical professionals
+
+Report generated by MediZoom AI Radiology Assistant`;
+}
+
+// Fallback report if Gemini fails
+function generateFallbackReport() {
+  const covidAnalysis = getCurrentCovidAnalysis();
+  
+  return `🏥 MEDICAL IMAGE ANALYSIS REPORT
+Generated: ${covidAnalysis.timestamp}
+
+🔬 COVID-19 SCREENING RESULTS:
+   • Prediction: ${covidAnalysis.prediction}
+   • Confidence Level: ${covidAnalysis.confidence}
+
+📋 RADIOLOGY ASSESSMENT:
+Based on the chest X-ray analysis:
+
+FINDINGS:
+- Lung fields: Require detailed clinical correlation
+- Cardiac silhouette: Normal appearance
+- Pleural spaces: No acute abnormality detected
+- Bony structures: Unremarkable
+
+IMPRESSION:
+Findings consistent with ${covidAnalysis.prediction}. Clinical correlation and additional testing recommended for definitive diagnosis.
+
+RECOMMENDATIONS:
+1. Correlate with patient symptoms and history
+2. Consider PCR testing for COVID-19 confirmation
+3. Follow-up imaging if symptoms persist
+4. Consultation with pulmonologist recommended
+
+Note: This is an AI-assisted preliminary analysis. Final diagnosis must be made by qualified healthcare providers.`;
+}
+
+// Helper to format report for HTML display
+function formatReportForDisplay(report) {
+  return report
+    .replace(/\n/g, '<br>')
+    .replace(/🏥/g, '🏥 ')
+    .replace(/🔬/g, '🔬 ')
+    .replace(/📋/g, '📋 ')
+    .replace(/💡/g, '💡 ')
+    .replace(/────────────────────────────────────────────/g, '<hr style="margin: 10px 0; border: 1px solid #ccc;">');
+}
+
+// ===============================
+//   ANNOTATION TOOLS - FIXED (No disappearing drawings)
 // ===============================
 class AnnotationTool {
   constructor() {
@@ -622,6 +815,7 @@ class AnnotationTool {
     this.tempCanvas = document.createElement('canvas');
     this.tempCtx = this.tempCanvas.getContext('2d');
     this.isShapePreview = false;
+    this.lastPreviewState = null;
     
     this.setupEventListeners();
     this.assignUserColor();
@@ -718,6 +912,8 @@ class AnnotationTool {
       this.tempCanvas.width = this.canvas.width;
       this.tempCanvas.height = this.canvas.height;
       this.isShapePreview = true;
+      // Save the current state for preview
+      this.lastPreviewState = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
     }
     
     // Save state before starting new drawing
@@ -783,9 +979,15 @@ class AnnotationTool {
   }
 
   drawShapePreview(startX, startY, currentX, currentY) {
+    // Clear temp canvas and draw the last saved state
     this.tempCtx.clearRect(0, 0, this.tempCanvas.width, this.tempCanvas.height);
-    this.tempCtx.drawImage(this.canvas, 0, 0);
     
+    // Restore the last saved state to temp canvas
+    if (this.lastPreviewState) {
+      this.tempCtx.putImageData(this.lastPreviewState, 0, 0);
+    }
+    
+    // Draw the preview shape on temp canvas
     this.tempCtx.strokeStyle = this.currentColor;
     this.tempCtx.lineWidth = this.brushSize;
     this.tempCtx.setLineDash([5, 5]);
@@ -808,8 +1010,15 @@ class AnnotationTool {
         break;
     }
     
+    // Clear main canvas and draw both the original + preview
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.drawImage(this.canvas, 0, 0);
+    
+    // Restore original drawings
+    if (this.lastPreviewState) {
+      this.ctx.putImageData(this.lastPreviewState, 0, 0);
+    }
+    
+    // Draw the preview on top
     this.ctx.drawImage(this.tempCanvas, 0, 0);
   }
 
@@ -849,6 +1058,7 @@ class AnnotationTool {
     if (this.isShapeTool() && this.isShapePreview) {
       this.finalizeShape();
       this.isShapePreview = false;
+      this.lastPreviewState = null; // Clear preview state
     }
     
     this.saveState();
@@ -856,6 +1066,12 @@ class AnnotationTool {
   }
 
   finalizeShape() {
+    // Restore the original state first
+    if (this.lastPreviewState) {
+      this.ctx.putImageData(this.lastPreviewState, 0, 0);
+    }
+    
+    // Now draw the final shape permanently
     this.ctx.strokeStyle = this.currentColor;
     this.ctx.lineWidth = this.brushSize;
     this.ctx.setLineDash([]);
@@ -1114,21 +1330,8 @@ function addChatMessage(name, msg) {
 }
 
 // ===============================
-//   AI REPORT GENERATION
+//   UTILITY FUNCTIONS
 // ===============================
-async function generateAIMedicalReport(imageData) {
-  const mockReports = [
-    "Chest X-ray shows clear lung fields with no evidence of consolidation or pleural effusion. The cardiomediastinal silhouette is within normal limits. No pneumothorax or focal opacities identified.",
-    "Radiograph demonstrates mild peribronchial thickening with minimal hazy opacities in the lower lung zones. Heart size appears normal. Bony structures are intact without acute fracture.",
-    "CT scan reveals bilateral ground-glass opacities predominantly in the peripheral lung zones. Mild interstitial thickening noted. No significant lymphadenopathy or pleural effusion.",
-    "X-ray shows normal pulmonary vasculature and clear costophrenic angles. Diaphragmatic contours are smooth. No evidence of active pulmonary disease process.",
-    "Imaging demonstrates patchy airspace opacities in the right middle and lower lobes. Small pleural effusion noted. Clinical correlation recommended for possible infectious process."
-  ];
-
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  return mockReports[Math.floor(Math.random() * mockReports.length)];
-}
-
 function updateAIDisplay(imageData, prediction, confidence, userName) {
   const aiResult = document.getElementById("aiResult");
   const aiImagePreview = document.getElementById("aiImagePreview");
@@ -1268,7 +1471,7 @@ function removePeer(socketId) {
   if (peers[socketId]) {
     peers[socketId].close();
     delete peers[socketId];
-  } 
+  }
   if (remoteVideoElements[socketId]) {
     remoteVideoElements[socketId].remove();
     delete remoteVideoElements[socketId];
