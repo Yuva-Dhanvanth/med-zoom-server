@@ -1268,7 +1268,7 @@ function removePeer(socketId) {
   if (peers[socketId]) {
     peers[socketId].close();
     delete peers[socketId];
-  }
+  } 
   if (remoteVideoElements[socketId]) {
     remoteVideoElements[socketId].remove();
     delete remoteVideoElements[socketId];
