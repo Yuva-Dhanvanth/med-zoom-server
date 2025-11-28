@@ -144,7 +144,8 @@ function registerSocketEvents() {
   });
 
   socket.on("drawing-action", (data) => {
-    if (annotationTool && data.userId !== socket.id) {
+    // Only process drawings from other users
+    if (data.userId !== socket.id && annotationTool) {
       annotationTool.handleRemoteDrawing(data);
       
       if (!userColors[data.userId]) {
@@ -602,7 +603,7 @@ function setupAIIntegration() {
 }
 
 // ===============================
-//   ANNOTATION TOOLS
+//   ANNOTATION TOOLS - FIXED
 // ===============================
 class AnnotationTool {
   constructor() {
@@ -639,9 +640,23 @@ class AnnotationTool {
   }
 
   assignUserColor() {
-    const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#FFEB3B'];
-    userColors[this.userId] = colors[Object.keys(userColors).length % colors.length];
-    this.currentColor = userColors[this.userId];
+    const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#FFEB3B', '#795548', '#607D8B', '#E91E63'];
+    
+    if (userColors[this.userId]) {
+      this.currentColor = userColors[this.userId];
+    } else {
+      const usedColors = Object.values(userColors);
+      const availableColors = colors.filter(color => !usedColors.includes(color));
+      
+      if (availableColors.length > 0) {
+        userColors[this.userId] = availableColors[Math.floor(Math.random() * availableColors.length)];
+      } else {
+        userColors[this.userId] = colors[Object.keys(userColors).length % colors.length];
+      }
+      
+      this.currentColor = userColors[this.userId];
+    }
+    
     document.getElementById('colorPicker').value = this.currentColor;
     document.getElementById('userColorBadge').style.backgroundColor = this.currentColor;
     this.updateUserIndicators();
@@ -704,6 +719,9 @@ class AnnotationTool {
       this.tempCanvas.height = this.canvas.height;
       this.isShapePreview = true;
     }
+    
+    // Save state before starting new drawing
+    this.saveState();
     
     broadcastDrawingAction('start', {
       tool: this.currentTool,
@@ -895,7 +913,8 @@ class AnnotationTool {
   saveState() {
     const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
     this.drawingHistory.push(imageData);
-    if (this.drawingHistory.length > 20) {
+    
+    if (this.drawingHistory.length > 50) {
       this.drawingHistory.shift();
     }
   }
@@ -925,57 +944,92 @@ class AnnotationTool {
   handleRemoteDrawing(data) {
     if (data.userId === this.userId) return;
     
-    if (data.action === 'start') {
-      this.ctx.lineWidth = data.data.brushSize;
-      this.ctx.lineCap = 'round';
-      this.ctx.strokeStyle = data.data.color;
-      this.ctx.beginPath();
-      this.ctx.moveTo(data.data.x, data.data.y);
+    console.log("🖌️ Processing remote drawing from:", data.userId);
+    
+    if (!userColors[data.userId] && data.data.color) {
+      userColors[data.userId] = data.data.color;
+      this.updateUserIndicators();
     }
-    else if (data.action === 'draw') {
-      this.ctx.lineWidth = data.data.brushSize;
-      this.ctx.strokeStyle = data.data.color;
-      this.ctx.globalCompositeOperation = 'source-over';
-      
-      if (data.data.tool === 'eraser') {
-        this.ctx.globalCompositeOperation = 'destination-out';
-      } else if (data.data.tool === 'highlighter') {
-        this.ctx.strokeStyle = data.data.color + '80';
-        this.ctx.lineWidth = data.data.brushSize * 3;
-      }
-      
-      this.ctx.beginPath();
-      this.ctx.moveTo(data.data.fromX, data.data.fromY);
-      this.ctx.lineTo(data.data.toX, data.data.toY);
-      this.ctx.stroke();
-    }
-    else if (data.action === 'shape') {
-      this.ctx.strokeStyle = data.data.color;
-      this.ctx.lineWidth = data.data.brushSize;
-      this.ctx.setLineDash([]);
-      
-      switch (data.data.tool) {
-        case 'rectangle':
-          const rectWidth = data.data.endX - data.data.startX;
-          const rectHeight = data.data.endY - data.data.startY;
-          this.ctx.strokeRect(data.data.startX, data.data.startY, rectWidth, rectHeight);
-          break;
-        case 'circle':
-          const radius = Math.sqrt(Math.pow(data.data.endX - data.data.startX, 2) + Math.pow(data.data.endY - data.data.startY, 2));
-          this.ctx.beginPath();
-          this.ctx.arc(data.data.startX, data.data.startY, radius, 0, 2 * Math.PI);
-          this.ctx.stroke();
-          break;
-        case 'arrow':
-          this.drawArrow(this.ctx, data.data.startX, data.data.startY, data.data.endX, data.data.endY, false);
-          break;
-      }
-    }
-    else if (data.action === 'clear') {
-      this.clearCanvas();
-    }
-    else if (data.action === 'undo') {
-      this.undo();
+
+    // Save current state before applying remote changes
+    this.saveState();
+
+    // Apply the remote drawing action
+    this.applyRemoteDrawingAction(data);
+    
+    console.log("✅ Remote drawing applied successfully");
+  }
+
+  applyRemoteDrawingAction(data) {
+    this.ctx.lineWidth = data.data.brushSize || this.brushSize;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    this.ctx.strokeStyle = userColors[data.userId] || data.data.color || '#4CAF50';
+    
+    switch (data.action) {
+      case 'start':
+        this.ctx.beginPath();
+        this.ctx.moveTo(data.data.x, data.data.y);
+        break;
+        
+      case 'draw':
+        if (data.data.tool === 'eraser') {
+          this.ctx.globalCompositeOperation = 'destination-out';
+          this.ctx.strokeStyle = 'rgba(0,0,0,1)';
+        } else if (data.data.tool === 'highlighter') {
+          this.ctx.globalCompositeOperation = 'source-over';
+          this.ctx.strokeStyle = (userColors[data.userId] || data.data.color || '#4CAF50') + '80';
+          this.ctx.lineWidth = (data.data.brushSize || this.brushSize) * 3;
+        } else {
+          this.ctx.globalCompositeOperation = 'source-over';
+          this.ctx.strokeStyle = userColors[data.userId] || data.data.color || '#4CAF50';
+        }
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(data.data.fromX, data.data.fromY);
+        this.ctx.lineTo(data.data.toX, data.data.toY);
+        this.ctx.stroke();
+        
+        this.ctx.globalCompositeOperation = 'source-over';
+        break;
+        
+      case 'shape':
+        this.ctx.strokeStyle = userColors[data.userId] || data.data.color || '#4CAF50';
+        this.ctx.lineWidth = data.data.brushSize || this.brushSize;
+        this.ctx.setLineDash([]);
+        
+        switch (data.data.tool) {
+          case 'rectangle':
+            const rectWidth = data.data.endX - data.data.startX;
+            const rectHeight = data.data.endY - data.data.startY;
+            this.ctx.strokeRect(data.data.startX, data.data.startY, rectWidth, rectHeight);
+            break;
+          case 'circle':
+            const radius = Math.sqrt(
+              Math.pow(data.data.endX - data.data.startX, 2) + 
+              Math.pow(data.data.endY - data.data.startY, 2)
+            );
+            this.ctx.beginPath();
+            this.ctx.arc(data.data.startX, data.data.startY, radius, 0, 2 * Math.PI);
+            this.ctx.stroke();
+            break;
+          case 'arrow':
+            this.drawArrow(this.ctx, data.data.startX, data.data.startY, data.data.endX, data.data.endY, false);
+            break;
+        }
+        break;
+        
+      case 'clear':
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        break;
+        
+      case 'undo':
+        if (this.drawingHistory.length > 1) {
+          this.drawingHistory.pop();
+          const previousState = this.drawingHistory[this.drawingHistory.length - 1];
+          this.ctx.putImageData(previousState, 0, 0);
+        }
+        break;
     }
   }
 }
